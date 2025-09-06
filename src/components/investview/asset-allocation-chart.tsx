@@ -55,10 +55,10 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
         <CardTitle>Asset Allocation</CardTitle>
         <CardDescription>Distribution of your portfolio by asset type.</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 flex items-center justify-center pb-0">
+      <CardContent className="flex-1 pb-0">
         <ChartContainer
           config={chartConfig}
-          className="mx-auto aspect-square max-h-[250px]"
+          className="mx-auto aspect-square max-h-[300px]"
         >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -104,13 +104,11 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
                 }}
               >
               </Pie>
+              <ChartLegend content={<ChartLegendContent nameKey="name" />} />
             </PieChart>
           </ResponsiveContainer>
         </ChartContainer>
       </CardContent>
-      <div className="flex justify-center p-4">
-        <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-      </div>
     </Card>
   );
 }

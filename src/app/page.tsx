@@ -29,12 +29,18 @@ export default function Home() {
     const savedData = localStorage.getItem('portfolioData');
     if (savedData) {
       try {
-        const parsedData = JSON.parse(savedData, (key, value) => {
-          if (key === 'transactions') {
+        let parsedData = JSON.parse(savedData, (key, value) => {
+          if (key === 'transactions' && Array.isArray(value)) {
             return value.map((t: any) => ({ ...t, date: new Date(t.date)}));
           }
           return value;
         });
+
+        // Ensure transactions is always an array
+        if (!parsedData.transactions) {
+          parsedData.transactions = [];
+        }
+
         setPortfolio(parsedData);
         setFileName("loaded_from_cache.csv");
       } catch {
@@ -140,7 +146,7 @@ export default function Home() {
   }, [portfolio]);
 
   const totalTransactions = useMemo(() => {
-    if (!portfolio) return 0;
+    if (!portfolio || !portfolio.transactions) return 0;
     return portfolio.transactions.length;
   }, [portfolio]);
 

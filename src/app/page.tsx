@@ -3,11 +3,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { Portfolio, Asset } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
-import { parseCSV } from '@/lib/csv-parser';
+import { parseCSV, type CsvTemplate } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Lightbulb, FileText, Download } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('default');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function Home() {
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
-          const assets = parseCSV(text);
+          const assets = parseCSV(text, csvTemplate);
           if (assets.length === 0) {
             throw new Error("No valid data found in the file. Please check the file format and content.");
           }
@@ -172,10 +174,20 @@ export default function Home() {
                 Portfolio Uploader
               </CardTitle>
               <CardDescription>
-                Upload your portfolio data as a CSV file to get started. All data is processed in your browser and is not stored on our servers.
+                Select a CSV template, then upload your portfolio data to get started. All data is processed in your browser.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-4">
+              <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default</SelectItem>
+                  <SelectItem value="groww">Groww</SelectItem>
+                </SelectContent>
+              </Select>
+
                <label htmlFor="csv-upload" className="flex-grow w-full">
                   <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
                     <div>
@@ -196,7 +208,7 @@ export default function Home() {
                   className="sr-only"
                   disabled={isParsing}
                 />
-              <Button onClick={downloadSampleCsv} variant="secondary" className="w-full sm:w-auto">
+              <Button onClick={downloadSampleCsv} variant="secondary" className="w-full sm:w-auto" disabled={csvTemplate !== 'default'}>
                 <Download className="mr-2 h-4 w-4" />
                 Sample CSV
               </Button>

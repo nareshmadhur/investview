@@ -51,8 +51,8 @@ export default function PerformanceTable({ assets }: { assets: Asset[] }) {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {assetsWithPerformance.map(asset => (
-                <TableRow key={asset.asset}>
+                {assetsWithPerformance.map((asset, index) => (
+                <TableRow key={`${asset.asset}-${index}`}>
                     <TableCell>
                     <div className="font-medium">{asset.asset}</div>
                     <Badge variant={getBadgeVariant(asset.assetType)} className="mt-1">{asset.assetType}</Badge>

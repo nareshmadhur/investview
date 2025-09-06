@@ -1,6 +1,6 @@
 'use client';
 
-import { Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { Pie, PieChart, ResponsiveContainer, Cell } from 'recharts';
 import {
   Card,
   CardContent,
@@ -22,7 +22,7 @@ import { useMemo } from 'react';
 export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
   const { data, chartConfig } = useMemo(() => {
     const allocation = assets.reduce((acc, asset) => {
-      const value = asset.quantity * asset.currentPrice;
+      const value = asset.quantity * asset.purchasePrice; // Use purchase price for cost basis
       if (!acc[asset.assetType]) {
         acc[asset.assetType] = 0;
       }
@@ -30,17 +30,16 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
       return acc;
     }, {} as Record<string, number>);
 
-    const chartData = Object.entries(allocation).map(([name, value], index) => ({
+    const chartData = Object.entries(allocation).map(([name, value]) => ({
       name,
       value,
-      fill: `var(--chart-${index + 3})`,
     }));
 
     const config: ChartConfig = {};
-    chartData.forEach(item => {
+    chartData.forEach((item, index) => {
       config[item.name] = {
         label: item.name,
-        color: item.fill,
+        color: `hsl(var(--chart-${index + 1}))`,
       };
     });
 
@@ -52,8 +51,8 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
   return (
     <Card className="flex flex-col h-full">
       <CardHeader>
-        <CardTitle>Asset Allocation</CardTitle>
-        <CardDescription>Distribution of your portfolio by asset type.</CardDescription>
+        <CardTitle>Investment Allocation</CardTitle>
+        <CardDescription>Distribution of your invested capital by asset type.</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
         <ChartContainer
@@ -65,8 +64,12 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
               <ChartTooltip
                 cursor={false}
                 content={<ChartTooltipContent 
-                    hideLabel 
-                    formatter={(value) => `${(Number(value) / totalValue * 100).toFixed(1)}%`}
+                    hideLabel
+                    formatter={(value, name) => {
+                      if (totalValue === 0) return '0%';
+                      const percentage = (Number(value) / totalValue * 100).toFixed(1);
+                      return `${chartConfig[name as string].label}: ${percentage}%`;
+                    }}
                  />}
               />
               <Pie
@@ -74,9 +77,9 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
                 dataKey="value"
                 nameKey="name"
                 innerRadius={60}
-                strokeWidth={5}
+                strokeWidth={2}
                 labelLine={false}
-                label={({
+                 label={({
                   cy,
                   midAngle,
                   innerRadius,
@@ -90,6 +93,9 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
                   const y = cy + radius * Math.sin(-midAngle * RADIAN)
                   if(totalValue === 0) return null;
 
+                  const percentage = (value/totalValue*100);
+                  if (percentage < 5) return null; // Don't render label for small slices
+
                   return (
                     <text
                       x={x}
@@ -98,11 +104,14 @@ export default function AssetAllocationChart({ assets }: { assets: Asset[] }) {
                       textAnchor={x > cy ? "start" : "end"}
                       dominantBaseline="central"
                     >
-                      {data[index].name} ({(value/totalValue*100).toFixed(0)}%)
+                      {data[index].name} ({percentage.toFixed(0)}%)
                     </text>
                   )
                 }}
               >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={chartConfig[entry.name]?.color} />
+                ))}
               </Pie>
               <ChartLegend content={<ChartLegendContent nameKey="name" />} />
             </PieChart>

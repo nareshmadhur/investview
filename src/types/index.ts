@@ -8,8 +8,5 @@ export type Asset = {
 
 export type Portfolio = {
   assets: Asset[];
-  totalValue: number;
   totalCost: number;
-  totalGainLoss: number;
-  totalGainLossPercentage: number;
 };

@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { Asset } from '@/types';
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 const formatCurrency = (value: number) => {
@@ -16,13 +15,10 @@ const formatCurrency = (value: number) => {
 };
 
 export default function PerformanceTable({ assets }: { assets: Asset[] }) {
-  const assetsWithPerformance = assets.map(asset => {
-    const currentValue = asset.quantity * asset.currentPrice;
+  const assetsWithCost = assets.map(asset => {
     const cost = asset.quantity * asset.purchasePrice;
-    const gainLoss = currentValue - cost;
-    const gainLossPercentage = cost > 0 ? (gainLoss / cost) * 100 : 0;
-    return { ...asset, currentValue, gainLoss, gainLossPercentage };
-  }).sort((a, b) => b.currentValue - a.currentValue);
+    return { ...asset, cost };
+  }).sort((a, b) => b.cost - a.cost);
 
   const getBadgeVariant = (assetType: string) => {
     switch (assetType) {
@@ -37,7 +33,7 @@ export default function PerformanceTable({ assets }: { assets: Asset[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Portfolio Holdings</CardTitle>
-        <CardDescription>A detailed breakdown of your individual assets.</CardDescription>
+        <CardDescription>A detailed breakdown of your individual assets by cost.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="relative w-full overflow-auto max-h-96">
@@ -45,24 +41,20 @@ export default function PerformanceTable({ assets }: { assets: Asset[] }) {
             <TableHeader>
                 <TableRow>
                 <TableHead>Asset</TableHead>
-                <TableHead className="text-right">Current Value</TableHead>
-                <TableHead className="text-right">Gain / Loss</TableHead>
-                <TableHead className="text-right">Gain / Loss (%)</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead className="text-right">Total Cost</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {assetsWithPerformance.map((asset, index) => (
+                {assetsWithCost.map((asset, index) => (
                 <TableRow key={`${asset.asset}-${index}`}>
                     <TableCell>
                     <div className="font-medium">{asset.asset}</div>
                     <Badge variant={getBadgeVariant(asset.assetType)} className="mt-1">{asset.assetType}</Badge>
                     </TableCell>
-                    <TableCell className="text-right">{formatCurrency(asset.currentValue)}</TableCell>
-                    <TableCell className={cn("text-right font-medium", asset.gainLoss >= 0 ? "text-chart-1" : "text-chart-2")}>
-                    {formatCurrency(asset.gainLoss)}
-                    </TableCell>
-                    <TableCell className={cn("text-right font-medium", asset.gainLoss >= 0 ? "text-chart-1" : "text-chart-2")}>
-                    {asset.gainLossPercentage.toFixed(2)}%
+                    <TableCell>{asset.quantity}</TableCell>
+                    <TableCell className="text-right font-medium">
+                        {formatCurrency(asset.cost)}
                     </TableCell>
                 </TableRow>
                 ))}

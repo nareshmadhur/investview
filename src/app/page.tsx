@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, PieChart as PieChartIcon, Hash } from 'lucide-react';
 
 import KpiCard from '@/components/investview/kpi-card';
 import AssetAllocationChart from '@/components/investview/asset-allocation-chart';
@@ -76,18 +76,13 @@ export default function Home() {
   };
   
   const calculatePortfolioMetrics = (assets: Asset[]): Portfolio => {
-    let totalValue = 0;
     let totalCost = 0;
 
     assets.forEach(asset => {
-      totalValue += asset.quantity * asset.currentPrice;
       totalCost += asset.quantity * asset.purchasePrice;
     });
 
-    const totalGainLoss = totalValue - totalCost;
-    const totalGainLossPercentage = totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0;
-
-    return { assets, totalValue, totalCost, totalGainLoss, totalGainLossPercentage };
+    return { assets, totalCost };
   };
 
   const generateAISuggestions = async () => {
@@ -97,10 +92,10 @@ export default function Home() {
     setAiSuggestions(null);
 
     const portfolioSummary = portfolio.assets.map(asset => 
-      `Asset: ${asset.asset}, Type: ${asset.assetType}, Value: $${(asset.quantity * asset.currentPrice).toFixed(2)}, Gain/Loss: $${((asset.currentPrice - asset.purchasePrice) * asset.quantity).toFixed(2)}`
+      `Asset: ${asset.asset}, Type: ${asset.assetType}, Invested Value: $${(asset.quantity * asset.purchasePrice).toFixed(2)}`
     ).join('. ');
 
-    const input = { portfolioData: `Total Portfolio Value: $${portfolio.totalValue.toFixed(2)}. ${portfolioSummary}` };
+    const input = { portfolioData: `Total Investment: $${portfolio.totalCost.toFixed(2)}. ${portfolioSummary}` };
 
     try {
       const result = await provideInvestmentSuggestions(input);
@@ -135,28 +130,13 @@ export default function Home() {
     document.body.removeChild(link);
   };
   
-  const { bestPerformer, worstPerformer } = useMemo(() => {
-    if (!portfolio || portfolio.assets.length === 0) {
-      return { 
-        bestPerformer: { name: 'N/A', value: 0 },
-        worstPerformer: { name: 'N/A', value: 0 }
-      };
-    }
-
-    let best = { name: portfolio.assets[0].asset, value: -Infinity };
-    let worst = { name: portfolio.assets[0].asset, value: Infinity };
-
-    portfolio.assets.forEach(asset => {
-      const gainLoss = (asset.currentPrice - asset.purchasePrice) * asset.quantity;
-      if (gainLoss > best.value) {
-        best = { name: asset.asset, value: gainLoss };
-      }
-      if (gainLoss < worst.value) {
-        worst = { name: asset.asset, value: gainLoss };
-      }
-    });
-    
-    return { bestPerformer: best, worstPerformer: worst };
+  const { uniqueAssetsCount, uniqueAssetTypesCount } = useMemo(() => {
+    if (!portfolio) return { uniqueAssetsCount: 0, uniqueAssetTypesCount: 0 };
+    const assetTypes = new Set(portfolio.assets.map(a => a.assetType));
+    return {
+      uniqueAssetsCount: portfolio.assets.length,
+      uniqueAssetTypesCount: assetTypes.size,
+    };
   }, [portfolio]);
 
   return (
@@ -224,20 +204,15 @@ export default function Home() {
 
           {portfolio && (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <KpiCard title="Total Portfolio Value" value={portfolio.totalValue} format="currency" />
-                <KpiCard title="Overall Gain/Loss" value={portfolio.totalGainLoss} previousValue={portfolio.totalCost} format="currency" showPercentage />
-                <KpiCard title="Best Performer" value={bestPerformer.value} helpText={bestPerformer.name} format="currency" />
-                <KpiCard title="Worst Performer" value={worstPerformer.value} helpText={worstPerformer.name} format="currency" />
+              <div className="grid gap-4 md:grid-cols-3">
+                <KpiCard title="Total Investment" value={portfolio.totalCost} format="currency" icon={TrendingUp} />
+                <KpiCard title="Unique Assets" value={uniqueAssetsCount} icon={Hash} />
+                <KpiCard title="Asset Classes" value={uniqueAssetTypesCount} icon={PieChartIcon} />
               </div>
 
-              <div className="grid gap-8 lg:grid-cols-7">
-                <div className="lg:col-span-5">
-                    <PerformanceTable assets={portfolio.assets} />
-                </div>
-                <div className="lg:col-span-2">
-                    <AssetAllocationChart assets={portfolio.assets} />
-                </div>
+              <div className="grid gap-8 lg:grid-cols-2">
+                <PerformanceTable assets={portfolio.assets} />
+                <AssetAllocationChart assets={portfolio.assets} />
               </div>
 
               <Card>

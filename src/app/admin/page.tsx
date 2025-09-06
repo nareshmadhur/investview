@@ -64,10 +64,10 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="w-6 h-6" />
-                Raw Data Viewer
+                Aggregated Data Viewer
               </CardTitle>
               <CardDescription>
-                Upload a CSV to see the raw parsed data.
+                Upload a CSV to see the aggregated, parsed data based on the selected template. This shows the final calculated holdings.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-4">
@@ -116,7 +116,7 @@ export default function AdminPage() {
               <CardHeader>
                 <CardTitle>Parsed Asset Data</CardTitle>
                 <CardDescription>
-                  This is the raw data parsed from the uploaded CSV file.
+                  This is the final aggregated data parsed from the uploaded CSV file.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -124,9 +124,9 @@ export default function AdminPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Asset</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Purchase Price</TableHead>
-                      <TableHead>Current Price</TableHead>
+                      <TableHead>Net Quantity</TableHead>
+                      <TableHead>Avg. Purchase Price</TableHead>
+                      <TableHead>Current Price (Placeholder)</TableHead>
                       <TableHead>Asset Type</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -134,9 +134,9 @@ export default function AdminPage() {
                     {assets.map((asset, index) => (
                       <TableRow key={`${asset.asset}-${index}`}>
                         <TableCell>{asset.asset}</TableCell>
-                        <TableCell>{asset.quantity}</TableCell>
-                        <TableCell>{asset.purchasePrice}</TableCell>
-                        <TableCell>{asset.currentPrice}</TableCell>
+                        <TableCell>{asset.quantity.toFixed(4)}</TableCell>
+                        <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
+                        <TableCell>{asset.currentPrice.toFixed(2)}</TableCell>
                         <TableCell>{asset.assetType}</TableCell>
                       </TableRow>
                     ))}
@@ -149,7 +149,7 @@ export default function AdminPage() {
           {!assets && !isParsing &&
             <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
               <h3 className="text-lg font-semibold">Admin Panel</h3>
-              <p>Upload a file to see the raw parsed data.</p>
+              <p>Upload a file to see the aggregated parsed data.</p>
             </div>
           }
         </div>

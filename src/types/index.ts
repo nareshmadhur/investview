@@ -1,12 +1,22 @@
+export type Transaction = {
+  asset: string;
+  quantity: number;
+  price: number;
+  type: 'BUY' | 'SELL';
+  date: Date;
+  assetType: 'Stock' | 'Cryptocurrency' | 'Commodity';
+};
+
 export type Asset = {
   asset: string;
   quantity: number;
-  purchasePrice: number;
-  currentPrice: number;
+  purchasePrice: number; // Average purchase price
+  currentPrice: number; // Placeholder for now
   assetType: 'Stock' | 'Cryptocurrency' | 'Commodity';
 };
 
 export type Portfolio = {
   assets: Asset[];
-  totalCost: number;
+  transactions: Transaction[];
+  totalCost: number; // Net invested value of current holdings
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { Portfolio, Asset } from '@/types';
+import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
 import { parseCSV, type CsvTemplate } from '@/lib/csv-parser';
 
@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, PieChart as PieChartIcon, Hash } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash } from 'lucide-react';
 
 import KpiCard from '@/components/investview/kpi-card';
-import AssetAllocationChart from '@/components/investview/asset-allocation-chart';
+import MonthlyActivityChart from '@/components/investview/monthly-activity-chart';
 import PerformanceTable from '@/components/investview/performance-table';
 
 export default function Home() {
@@ -29,7 +29,12 @@ export default function Home() {
     const savedData = localStorage.getItem('portfolioData');
     if (savedData) {
       try {
-        const parsedData = JSON.parse(savedData);
+        const parsedData = JSON.parse(savedData, (key, value) => {
+          if (key === 'transactions') {
+            return value.map((t: any) => ({ ...t, date: new Date(t.date)}));
+          }
+          return value;
+        });
         setPortfolio(parsedData);
         setFileName("loaded_from_cache.csv");
       } catch {
@@ -49,11 +54,11 @@ export default function Home() {
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
-          const assets = parseCSV(text, csvTemplate);
-          if (assets.length === 0) {
+          const { assets, transactions } = parseCSV(text, csvTemplate);
+          if (assets.length === 0 && transactions.length === 0) {
             throw new Error("No valid data found in the file. Please check the file format and content.");
           }
-          const calculatedPortfolio = calculatePortfolioMetrics(assets);
+          const calculatedPortfolio = calculatePortfolioMetrics(assets, transactions);
           setPortfolio(calculatedPortfolio);
           localStorage.setItem('portfolioData', JSON.stringify(calculatedPortfolio));
         } catch (error) {
@@ -75,14 +80,13 @@ export default function Home() {
     event.target.value = '';
   };
   
-  const calculatePortfolioMetrics = (assets: Asset[]): Portfolio => {
+  const calculatePortfolioMetrics = (assets: Asset[], transactions: Transaction[]): Portfolio => {
     let totalCost = 0;
-
     assets.forEach(asset => {
       totalCost += asset.quantity * asset.purchasePrice;
     });
 
-    return { assets, totalCost };
+    return { assets, transactions, totalCost };
   };
 
   const generateAISuggestions = async () => {
@@ -113,12 +117,12 @@ export default function Home() {
   };
 
   const downloadSampleCsv = () => {
-    const csvContent = "Asset,Quantity,PurchasePrice,CurrentPrice,AssetType\n" +
-      "Apple Inc.,10,150,210,Stock\n" +
-      "Bitcoin,0.5,60000,65000,Cryptocurrency\n" +
-      "Gold,5,1800,2300,Commodity\n" +
-      "Microsoft Corp.,15,300,440,Stock\n" +
-      "Ethereum,10,3000,3500,Cryptocurrency";
+    const csvContent = "Asset,Quantity,PurchasePrice,CurrentPrice,AssetType,Date\n" +
+      "Apple Inc.,10,150,210,Stock,2023-01-15\n" +
+      "Bitcoin,0.5,60000,65000,Cryptocurrency,2023-02-20\n" +
+      "Gold,5,1800,2300,Commodity,2023-03-10\n" +
+      "Microsoft Corp.,15,300,440,Stock,2023-04-05\n" +
+      "Ethereum,10,3000,3500,Cryptocurrency,2023-05-01";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -130,13 +134,14 @@ export default function Home() {
     document.body.removeChild(link);
   };
   
-  const { uniqueAssetsCount, uniqueAssetTypesCount } = useMemo(() => {
-    if (!portfolio) return { uniqueAssetsCount: 0, uniqueAssetTypesCount: 0 };
-    const assetTypes = new Set(portfolio.assets.map(a => a.assetType));
-    return {
-      uniqueAssetsCount: portfolio.assets.length,
-      uniqueAssetTypesCount: assetTypes.size,
-    };
+  const uniqueAssetsCount = useMemo(() => {
+    if (!portfolio) return 0;
+    return portfolio.assets.length;
+  }, [portfolio]);
+
+  const totalTransactions = useMemo(() => {
+    if (!portfolio) return 0;
+    return portfolio.transactions.length;
   }, [portfolio]);
 
   return (
@@ -205,14 +210,14 @@ export default function Home() {
           {portfolio && (
             <>
               <div className="grid gap-4 md:grid-cols-3">
-                <KpiCard title="Total Investment" value={portfolio.totalCost} format="currency" icon={TrendingUp} />
-                <KpiCard title="Unique Assets" value={uniqueAssetsCount} icon={Hash} />
-                <KpiCard title="Asset Classes" value={uniqueAssetTypesCount} icon={PieChartIcon} />
+                <KpiCard title="Net Invested Value" value={portfolio.totalCost} format="currency" icon={TrendingUp} />
+                <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
+                <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />
               </div>
 
               <div className="grid gap-8 lg:grid-cols-2">
-                <PerformanceTable assets={portfolio.assets} />
-                <AssetAllocationChart assets={portfolio.assets} />
+                 <PerformanceTable assets={portfolio.assets} />
+                 <MonthlyActivityChart transactions={portfolio.transactions} />
               </div>
 
               <Card>

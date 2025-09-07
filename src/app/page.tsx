@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash } from 'lucide-react';
 
 import KpiCard from '@/components/investview/kpi-card';
-import MonthlyActivityChart from '@/components/investview/monthly-activity-chart';
+import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
 import PerformanceTable from '@/components/investview/performance-table';
 
 export default function Home() {
@@ -223,7 +223,7 @@ export default function Home() {
 
               <div className="grid gap-8 lg:grid-cols-2">
                  <PerformanceTable assets={portfolio.assets} />
-                 <MonthlyActivityChart transactions={portfolio.transactions} />
+                 <YearlyActivityChart transactions={portfolio.transactions} />
               </div>
 
               <Card>

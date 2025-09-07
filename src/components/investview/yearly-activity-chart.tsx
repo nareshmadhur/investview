@@ -28,44 +28,51 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export default function MonthlyActivityChart({ transactions }: { transactions: Transaction[] }) {
+export default function YearlyActivityChart({ transactions }: { transactions: Transaction[] }) {
   const data = useMemo(() => {
-    const monthlyData: Record<string, { month: string; buy: number; sell: number }> = {};
+    const yearlyData: Record<string, { year: string; buy: number; sell: number }> = {};
 
     transactions.forEach(tx => {
-      const month = tx.date.toLocaleString('default', { month: 'short', year: '2-digit' });
-      if (!monthlyData[month]) {
-        monthlyData[month] = { month, buy: 0, sell: 0 };
+      const year = tx.date.getFullYear().toString();
+      if (!yearlyData[year]) {
+        yearlyData[year] = { year, buy: 0, sell: 0 };
       }
       const value = tx.quantity * tx.price;
       if (tx.type === 'BUY') {
-        monthlyData[month].buy += value;
+        yearlyData[year].buy += value;
       } else {
-        monthlyData[month].sell += value;
+        yearlyData[year].sell += value;
       }
     });
 
-    // Get the last 12 months for display
-    const sortedMonths = Object.values(monthlyData).sort((a,b) => {
-        const dateA = new Date(`01 ${a.month.replace("'", " 20")}`);
-        const dateB = new Date(`01 ${b.month.replace("'", " 20")}`);
-        return dateA.getTime() - dateB.getTime();
-    });
-    
-    return sortedMonths.slice(-12);
+    return Object.values(yearlyData).sort((a,b) => parseInt(a.year) - parseInt(b.year));
   }, [transactions]);
+
+  if(data.length === 0) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Yearly Investment Activity</CardTitle>
+                <CardDescription>No transaction data available to display.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center h-[300px]">
+                <p className="text-muted-foreground">Upload a CSV to see your activity.</p>
+            </CardContent>
+        </Card>
+    )
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Monthly Investment Activity</CardTitle>
-        <CardDescription>Total buy and sell value over the last 12 months.</CardDescription>
+        <CardTitle>Yearly Investment Activity</CardTitle>
+        <CardDescription>Total buy and sell value per year.</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig}>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                <XAxis dataKey="year" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
                 <YAxis
                     tickLine={false}
                     axisLine={false}

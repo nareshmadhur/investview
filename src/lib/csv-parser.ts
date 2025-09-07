@@ -227,17 +227,24 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         if (type === 'BUY') {
             holdings[assetName].quantity += quantity;
             holdings[assetName].totalCost += quantity * price;
-            logs.push(`Updated holdings for ${assetName}: BUY ${quantity} @ ${price}. New Qty: ${holdings[assetName].quantity}, New Total Cost: ${holdings[assetName].totalCost}`);
+            logs.push(`Updated holdings for ${assetName}: BUY ${quantity} @ ${price}. New Qty: ${holdings[assetName].quantity.toFixed(4)}, New Total Cost: ${holdings[assetName].totalCost.toFixed(2)}`);
         } else if (type === 'SELL') {
             const holding = holdings[assetName];
+            logs.push(`Processing SELL for ${assetName}. State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}.`);
+            
+            let costReduction = 0;
             if (holding.quantity > 0) {
                 const avgPriceBeforeSell = holding.totalCost / holding.quantity;
-                holding.totalCost -= quantity * (isNaN(avgPriceBeforeSell) ? price : avgPriceBeforeSell);
+                 logs.push(`Calculated average cost for reduction: ${avgPriceBeforeSell.toFixed(2)}`);
+                costReduction = quantity * (isNaN(avgPriceBeforeSell) ? price : avgPriceBeforeSell);
             } else {
-                 holding.totalCost -= quantity * price; // Cost can be negative if shorting
+                 logs.push(`No existing quantity. Reducing cost based on current sell price: ${price}`);
+                 costReduction = quantity * price; // Cost can be negative if shorting
             }
+
             holding.quantity -= quantity;
-            logs.push(`Updated holdings for ${assetName}: SELL ${quantity} @ ${price}. New Qty: ${holdings[assetName].quantity}, New Total Cost: ${holdings[assetName].totalCost}`);
+            holding.totalCost -= costReduction;
+            logs.push(`Reduced cost by ${costReduction.toFixed(2)}. State after: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}.`);
         }
     }
 

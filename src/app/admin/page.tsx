@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const defaultGrowwSchema: GrowwSchemaMapping = {
   asset: 'Stock name',
@@ -57,32 +58,54 @@ const LogTable = ({ logs, title }: { logs: string[], title: string }) => (
   </div>
 );
 
-const StructuredLogTable = ({ logs }: { logs: StructuredLog[] }) => {
+const StructuredLogTable = ({ logs, title }: { logs: StructuredLog[], title: string }) => {
+    if (!logs || logs.length === 0) {
+        return null;
+    }
+    return (
+        <div className="mb-6">
+            <h4 className="font-semibold text-lg mb-2">{title}</h4>
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[100px]">Step</TableHead>
+                            <TableHead className="w-[150px]">Action</TableHead>
+                            <TableHead>Details</TableHead>
+                            <TableHead>Result</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {logs.map((log, index) => (
+                            <TableRow key={index}>
+                                <TableCell className="font-mono text-xs">{log.step}</TableCell>
+                                <TableCell className="font-medium">{log.action}</TableCell>
+                                <TableCell className="text-xs">{log.details}</TableCell>
+                                <TableCell className="text-xs font-mono">{log.result}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    );
+};
+
+const AssetLogsView = ({ logs }: { logs: StructuredLog[] }) => {
+    const buyLogs = useMemo(() => logs.filter(log => log.action === 'Parse' && log.result.startsWith('Type: BUY')), [logs]);
+    const sellLogs = useMemo(() => logs.filter(log => log.action === 'Parse' && log.result.startsWith('Type: SELL')), [logs]);
+    const aggregationLogs = useMemo(() => logs.filter(log => ['Aggregate', 'Profit Calc', 'Final Aggregation'].includes(log.action)), [logs]);
+    const otherLogs = useMemo(() => logs.filter(log => !buyLogs.includes(log) && !sellLogs.includes(log) && !aggregationLogs.includes(log)), [logs]);
+
     if (!logs || logs.length === 0) {
         return <p className="text-sm text-muted-foreground">No detailed logs available for this asset.</p>;
     }
     return (
-        <ScrollArea className="h-96 w-full rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-[100px]">Step</TableHead>
-                        <TableHead className="w-[120px]">Action</TableHead>
-                        <TableHead>Details</TableHead>
-                        <TableHead>Result</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {logs.map((log, index) => (
-                        <TableRow key={index}>
-                            <TableCell className="font-mono text-xs">{log.step}</TableCell>
-                            <TableCell className="font-medium">{log.action}</TableCell>
-                            <TableCell className="text-xs">{log.details}</TableCell>
-                            <TableCell className="text-xs font-mono">{log.result}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+        <ScrollArea className="h-[60vh] w-full rounded-md border p-4">
+           <StructuredLogTable logs={buyLogs} title="Buy Transactions" />
+           <StructuredLogTable logs={sellLogs} title="Sell Transactions" />
+           <StructuredLogTable logs={aggregationLogs} title="Aggregation & Profit Calculation" />
+           {otherLogs.length > 0 && <StructuredLogTable logs={otherLogs} title="Other Logs" />}
         </ScrollArea>
     );
 };
@@ -201,25 +224,33 @@ export default function AdminPage() {
           </Card>
 
           {csvTemplate === 'groww' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="w-6 h-6" />
-                   Groww Schema Configuration
-                </CardTitle>
-                <CardDescription>
-                  Define the column names from your Groww CSV file. The parser will look for these exact names in the header row.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(Object.keys(defaultGrowwSchema) as Array<keyof GrowwSchemaMapping>).map(key => (
-                  <div key={key} className="grid gap-1.5">
-                    <Label htmlFor={`schema-${key}`} className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
-                    <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} placeholder={`e.g. ${defaultGrowwSchema[key]}`} />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+             <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="item-1">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-2">
+                            <Settings className="w-6 h-6" />
+                            <span className="text-lg">Groww Schema Configuration</span>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <Card className="border-0">
+                             <CardHeader className="pt-2">
+                                <CardDescription>
+                                Define the column names from your Groww CSV file. The parser will look for these exact names in the header row.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {(Object.keys(defaultGrowwSchema) as Array<keyof GrowwSchemaMapping>).map(key => (
+                                <div key={key} className="grid gap-1.5">
+                                    <Label htmlFor={`schema-${key}`} className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
+                                    <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} placeholder={`e.g. ${defaultGrowwSchema[key]}`} />
+                                </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
           )}
 
           {isParsing && (
@@ -278,12 +309,12 @@ export default function AdminPage() {
                                 <DialogTrigger asChild>
                                   <Button variant="outline" size="sm"><TableIcon className="mr-2 h-4 w-4" /> View Logs</Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-4xl">
+                                <DialogContent className="max-w-6xl">
                                   <DialogHeader>
                                     <DialogTitle>Parsing Logs for: {asset.asset}</DialogTitle>
                                   </DialogHeader>
                                   <div className="py-4">
-                                    <StructuredLogTable logs={parsingLogs.assetLogs[asset.asset]?.logs || []} />
+                                    <AssetLogsView logs={parsingLogs.assetLogs[asset.asset]?.logs || []} />
                                   </div>
                                 </DialogContent>
                               </Dialog>

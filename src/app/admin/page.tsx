@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, Search } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon } from 'lucide-react';
 
 const defaultGrowwSchema: GrowwSchemaMapping = {
   asset: 'Stock name',
@@ -30,6 +30,33 @@ const initialLogs: ParsingLogs = {
   assetLogs: {},
   summary: [],
 };
+
+const LogTable = ({ logs, title }: { logs: string[], title: string }) => (
+  <div>
+    <h3 className="font-semibold mb-2">{title}</h3>
+    <ScrollArea className="h-64 w-full rounded-md border">
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Log Entry</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {logs.length > 0 ? logs.map((log, index) => (
+                     <TableRow key={index}>
+                        <TableCell className="text-xs whitespace-pre-wrap font-mono">{log}</TableCell>
+                    </TableRow>
+                )) : (
+                     <TableRow>
+                        <TableCell className="text-xs text-muted-foreground">No logs for this section.</TableCell>
+                    </TableRow>
+                )}
+            </TableBody>
+        </Table>
+    </ScrollArea>
+  </div>
+);
+
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
@@ -177,18 +204,8 @@ export default function AdminPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
-                    <div>
-                      <h3 className="font-semibold mb-2">Setup & Initialization</h3>
-                      <ScrollArea className="h-32 w-full rounded-md border p-4">
-                          <pre className="text-xs whitespace-pre-wrap">{parsingLogs.setup.join('\n')}</pre>
-                      </ScrollArea>
-                    </div>
-                     <div>
-                      <h3 className="font-semibold mb-2">Summary</h3>
-                      <ScrollArea className="h-32 w-full rounded-md border p-4">
-                          <pre className="text-xs whitespace-pre-wrap">{parsingLogs.summary.join('\n')}</pre>
-                      </ScrollArea>
-                    </div>
+                    <LogTable title="Setup & Initialization" logs={parsingLogs.setup} />
+                    <LogTable title="Summary" logs={parsingLogs.summary} />
                 </CardContent>
               </Card>
           )}
@@ -222,29 +239,15 @@ export default function AdminPage() {
                           <TableCell className="text-right">
                              <Dialog>
                                 <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm"><Search className="mr-2 h-4 w-4" /> View Logs</Button>
+                                  <Button variant="outline" size="sm"><TableIcon className="mr-2 h-4 w-4" /> View Logs</Button>
                                 </DialogTrigger>
                                 <DialogContent className="max-w-4xl">
                                   <DialogHeader>
                                     <DialogTitle>Parsing Logs for: {asset.asset}</DialogTitle>
                                   </DialogHeader>
-                                  <div className="grid gap-4 py-4">
-                                      <div>
-                                        <h3 className="font-semibold mb-2">Transaction Logs</h3>
-                                        <ScrollArea className="h-64 w-full rounded-md border p-4">
-                                            <pre className="text-xs whitespace-pre-wrap">
-                                                {(parsingLogs.assetLogs[asset.asset]?.transactions || ['No transaction logs for this asset.']).join('\n')}
-                                            </pre>
-                                        </ScrollArea>
-                                      </div>
-                                      <div>
-                                        <h3 className="font-semibold mb-2">Aggregation & Profit Logs</h3>
-                                        <ScrollArea className="h-64 w-full rounded-md border p-4">
-                                            <pre className="text-xs whitespace-pre-wrap">
-                                                {(parsingLogs.assetLogs[asset.asset]?.aggregation || ['No aggregation logs for this asset.']).join('\n')}
-                                            </pre>
-                                        </ScrollArea>
-                                      </div>
+                                  <div className="grid gap-6 py-4">
+                                    <LogTable title="Transaction Logs" logs={parsingLogs.assetLogs[asset.asset]?.transactions || []} />
+                                    <LogTable title="Aggregation & Profit Logs" logs={parsingLogs.assetLogs[asset.asset]?.aggregation || []} />
                                   </div>
                                 </DialogContent>
                               </Dialog>
@@ -275,3 +278,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

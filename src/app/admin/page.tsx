@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Asset } from '@/types';
-import { parseCSV, type CsvTemplate } from '@/lib/csv-parser';
+import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,11 +29,14 @@ export default function AdminPage() {
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
-          const parsedAssets = parseCSV(text, csvTemplate);
-          if (parsedAssets.length === 0) {
+          const result: ParseResult = parseCSV(text, csvTemplate);
+          if (result.error) {
+            throw new Error(result.error);
+          }
+          if (result.assets.length === 0) {
             throw new Error("No valid data found in the file. Please check the file format and content.");
           }
-          setAssets(parsedAssets);
+          setAssets(result.assets);
         } catch (error) {
           console.error(error);
           toast({

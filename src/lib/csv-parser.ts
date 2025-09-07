@@ -18,7 +18,7 @@ const initialLogs: ParsingLogs = {
 
 // The default parser returns both aggregated assets and raw transactions
 const parseDefault = (lines: string[]): ParseResult => {
-  const logs: ParsingLogs = { ...initialLogs };
+  const logs: ParsingLogs = { ...initialLogs, setup:[], transactions: [], aggregation: [] };
   if (lines.length < 2) {
     const error = 'CSV file must contain a header row and at least one data row.';
     logs.setup.push(`Error: ${error}`);
@@ -251,6 +251,12 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
 
             holding.quantity -= quantity;
             holding.totalCost -= costBasisAdjustment;
+
+            // If we sold more than we had (short position), the cost basis can become negative. Clamp it to zero for simplicity for now.
+            if(holding.totalCost < 0) {
+                logs.aggregation.push(`Warning: Total cost for ${assetName} went negative after sell. Clamping to 0.`);
+                holding.totalCost = 0;
+            }
             logs.aggregation.push(`Adjusted Total Cost by ${costBasisAdjustment.toFixed(2)}. State after: Qty=${holding.quantity.toFixed(4)}, New Total Cost=${holding.totalCost.toFixed(2)}.`);
         }
     }
@@ -263,8 +269,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
             const finalAsset = {
                 asset: assetName,
                 quantity: holding.quantity,
-                purchasePrice: averagePrice < 0 ? 0 : averagePrice,
-                currentPrice: averagePrice < 0 ? 0 : averagePrice, // Placeholder
+                purchasePrice: averagePrice,
+                currentPrice: averagePrice, // Placeholder
                 assetType: 'Stock' as 'Stock',
             };
             logs.aggregation.push(`Final asset: ${JSON.stringify(finalAsset)}`);

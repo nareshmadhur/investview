@@ -237,7 +237,8 @@ export default function Home() {
                   format="currency" 
                   icon={TrendingUp} 
                   currency={portfolio.currency}
-                  fractionDigits={0} 
+                  fractionDigits={0}
+                  tooltipText="The total amount paid for the assets you currently own, calculated on an average cost basis after accounting for buys and sells."
                 />
                 <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
                 <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />

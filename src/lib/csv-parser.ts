@@ -92,6 +92,7 @@ const parseGroww = (lines: string[]): { assets: Asset[], transactions: Transacti
     const priceIndex = headers.indexOf('Price');
     const typeIndex = headers.indexOf('Type');
     const dateIndex = headers.indexOf('Execution date and time');
+    const statusIndex = headers.indexOf('Order status');
 
     const holdings: Record<string, { quantity: number; totalCost: number }> = {};
     const transactions: Transaction[] = [];
@@ -100,17 +101,22 @@ const parseGroww = (lines: string[]): { assets: Asset[], transactions: Transacti
         const line = lines[i];
         if (!line.trim()) continue;
 
-        const data = line.split(',');
+        const data = line.split(',').map(d => d.trim().replace(/"/g, ''));
         if (data.length < headers.length) {
             console.warn(`Skipping malformed Groww row ${i + 1}: Expected ${headers.length} columns, but got ${data.length}.`);
             continue;
         }
 
-        const assetName = data[assetIndex].trim().replace(/"/g, '');
+        // Only process completed orders
+        if (statusIndex !== -1 && data[statusIndex].toUpperCase() !== 'COMPLETED') {
+            continue;
+        }
+
+        const assetName = data[assetIndex];
         const quantity = parseFloat(data[quantityIndex]);
         const price = parseFloat(data[priceIndex]);
-        const type = data[typeIndex].trim().replace(/"/g, '').toUpperCase();
-        const dateStr = data[dateIndex].trim().replace(/"/g, '');
+        const type = data[typeIndex].toUpperCase();
+        const dateStr = data[dateIndex];
         const date = new Date(dateStr);
 
         if (isNaN(quantity) || isNaN(price) || isNaN(date.getTime())) {

@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Asset, GrowwSchemaMapping, ParsingLogs } from '@/types';
+import type { Asset, GrowwSchemaMapping, ParsingLogs, AssetLog } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, Search } from 'lucide-react';
 
 const defaultGrowwSchema: GrowwSchemaMapping = {
   asset: 'Stock name',
@@ -26,15 +27,15 @@ const defaultGrowwSchema: GrowwSchemaMapping = {
 
 const initialLogs: ParsingLogs = {
   setup: [],
-  transactions: [],
-  aggregation: [],
+  assetLogs: {},
+  summary: [],
 };
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('default');
+  const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
   const [growwSchema, setGrowwSchema] = useState<GrowwSchemaMapping>(defaultGrowwSchema);
   const [parsingLogs, setParsingLogs] = useState<ParsingLogs>(initialLogs);
   const { toast } = useToast();
@@ -76,7 +77,6 @@ export default function AdminPage() {
             description: error instanceof Error ? error.message : "An unknown error occurred.",
           });
           setAssets(null);
-          // Don't clear filename on error, so user knows which file failed
         } finally {
           setIsParsing(false);
         }
@@ -92,9 +92,8 @@ export default function AdminPage() {
   
   const hasAssets = useMemo(() => assets !== null, [assets]);
   const hasLogs = useMemo(() => {
-    return parsingLogs && (parsingLogs.setup.length > 0 || parsingLogs.transactions.length > 0 || parsingLogs.aggregation.length > 0)
+    return parsingLogs && (parsingLogs.setup.length > 0 || Object.keys(parsingLogs.assetLogs).length > 0 || parsingLogs.summary.length > 0)
   }, [parsingLogs]);
-
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
@@ -111,7 +110,7 @@ export default function AdminPage() {
                 Aggregated Data Viewer
               </CardTitle>
               <CardDescription>
-                Upload a CSV to see the aggregated, parsed data based on the selected template. This shows the final calculated holdings.
+                Upload a CSV to see the aggregated, parsed data. Click on an asset in the table below to see its detailed parsing logs.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-4">
@@ -128,23 +127,12 @@ export default function AdminPage() {
               <label htmlFor="csv-upload" className="flex-grow w-full">
                 <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
                   <div>
-                    {isParsing ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="mr-2 h-4 w-4" />
-                    )}
+                    {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                     {fileName || "Click to select a .csv file"}
                   </div>
                 </Button>
               </label>
-              <Input
-                id="csv-upload"
-                type="file"
-                accept=".csv"
-                onChange={handleFileChange}
-                className="sr-only"
-                disabled={isParsing}
-              />
+              <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="sr-only" disabled={isParsing} />
             </CardContent>
           </Card>
 
@@ -163,12 +151,7 @@ export default function AdminPage() {
                 {(Object.keys(defaultGrowwSchema) as Array<keyof GrowwSchemaMapping>).map(key => (
                   <div key={key} className="grid gap-1.5">
                     <Label htmlFor={`schema-${key}`} className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
-                    <Input
-                      id={`schema-${key}`}
-                      value={growwSchema[key]}
-                      onChange={(e) => handleSchemaChange(key, e.target.value)}
-                      placeholder={`e.g. ${defaultGrowwSchema[key]}`}
-                    />
+                    <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} placeholder={`e.g. ${defaultGrowwSchema[key]}`} />
                   </div>
                 ))}
               </CardContent>
@@ -187,45 +170,25 @@ export default function AdminPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BookOpen className="w-6 h-6" />
-                    Parsing Logs
+                    Global Parsing Logs
                   </CardTitle>
                   <CardDescription>
-                    A step-by-step log of how the CSV file was processed, broken down by stage.
+                    High-level logs about the parsing setup and overall summary. For asset-specific logs, click an asset in the table below.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <Accordion type="multiple" className="w-full" defaultValue={['setup', 'transactions', 'aggregation']}>
-                        <AccordionItem value="setup">
-                            <AccordionTrigger>Stage 1: Setup & Initialization</AccordionTrigger>
-                            <AccordionContent>
-                                <ScrollArea className="h-48 w-full rounded-md border p-4">
-                                    <pre className="text-xs whitespace-pre-wrap">
-                                      {parsingLogs.setup.join('\n')}
-                                    </pre>
-                                </ScrollArea>
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="transactions">
-                            <AccordionTrigger>Stage 2: Transaction Processing</AccordionTrigger>
-                            <AccordionContent>
-                                <ScrollArea className="h-72 w-full rounded-md border p-4">
-                                     <pre className="text-xs whitespace-pre-wrap">
-                                      {parsingLogs.transactions.join('\n')}
-                                    </pre>
-                                </ScrollArea>
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="aggregation">
-                            <AccordionTrigger>Stage 3: Holdings Aggregation & Profit Calculation</AccordionTrigger>
-                            <AccordionContent>
-                                <ScrollArea className="h-48 w-full rounded-md border p-4">
-                                     <pre className="text-xs whitespace-pre-wrap">
-                                      {parsingLogs.aggregation.join('\n')}
-                                    </pre>
-                                </ScrollArea>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
+                <CardContent className="grid gap-4">
+                    <div>
+                      <h3 className="font-semibold mb-2">Setup & Initialization</h3>
+                      <ScrollArea className="h-32 w-full rounded-md border p-4">
+                          <pre className="text-xs whitespace-pre-wrap">{parsingLogs.setup.join('\n')}</pre>
+                      </ScrollArea>
+                    </div>
+                     <div>
+                      <h3 className="font-semibold mb-2">Summary</h3>
+                      <ScrollArea className="h-32 w-full rounded-md border p-4">
+                          <pre className="text-xs whitespace-pre-wrap">{parsingLogs.summary.join('\n')}</pre>
+                      </ScrollArea>
+                    </div>
                 </CardContent>
               </Card>
           )}
@@ -235,7 +198,7 @@ export default function AdminPage() {
               <CardHeader>
                 <CardTitle>Parsed Asset Data</CardTitle>
                 <CardDescription>
-                  This is the final aggregated data parsed from the uploaded CSV file.
+                  This is the final aggregated data. Click a row to see the detailed transaction and aggregation logs for that specific asset.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -245,18 +208,47 @@ export default function AdminPage() {
                         <TableHead>Asset</TableHead>
                         <TableHead>Net Quantity</TableHead>
                         <TableHead>Avg. Purchase Price</TableHead>
-                        <TableHead>Current Price (Placeholder)</TableHead>
                         <TableHead>Asset Type</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {assets.map((asset, index) => (
                         <TableRow key={`${asset.asset}-${index}`}>
-                          <TableCell>{asset.asset}</TableCell>
+                          <TableCell className="font-medium">{asset.asset}</TableCell>
                           <TableCell>{asset.quantity.toFixed(4)}</TableCell>
                           <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
-                          <TableCell>{asset.currentPrice.toFixed(2)}</TableCell>
                           <TableCell>{asset.assetType}</TableCell>
+                          <TableCell className="text-right">
+                             <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm"><Search className="mr-2 h-4 w-4" /> View Logs</Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl">
+                                  <DialogHeader>
+                                    <DialogTitle>Parsing Logs for: {asset.asset}</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="grid gap-4 py-4">
+                                      <div>
+                                        <h3 className="font-semibold mb-2">Transaction Logs</h3>
+                                        <ScrollArea className="h-64 w-full rounded-md border p-4">
+                                            <pre className="text-xs whitespace-pre-wrap">
+                                                {(parsingLogs.assetLogs[asset.asset]?.transactions || ['No transaction logs for this asset.']).join('\n')}
+                                            </pre>
+                                        </ScrollArea>
+                                      </div>
+                                      <div>
+                                        <h3 className="font-semibold mb-2">Aggregation & Profit Logs</h3>
+                                        <ScrollArea className="h-64 w-full rounded-md border p-4">
+                                            <pre className="text-xs whitespace-pre-wrap">
+                                                {(parsingLogs.assetLogs[asset.asset]?.aggregation || ['No aggregation logs for this asset.']).join('\n')}
+                                            </pre>
+                                        </ScrollArea>
+                                      </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -268,7 +260,7 @@ export default function AdminPage() {
           {hasAssets && assets.length === 0 && (
              <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
                 <h3 className="text-lg font-semibold">No Holdings Found</h3>
-                <p>All assets may have been sold, or the file contained no valid transactions. Check the parsing logs above for details.</p>
+                <p>All assets may have been sold, or the file contained no valid transactions. Check the global logs above for details.</p>
              </div>
           )}
 

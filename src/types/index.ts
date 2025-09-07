@@ -1,3 +1,4 @@
+
 export type Transaction = {
   asset: string;
   quantity: number;
@@ -32,8 +33,13 @@ export type GrowwSchemaMapping = {
   status: string;
 };
 
-export type ParsingLogs = {
-  setup: string[];
+export type AssetLog = {
   transactions: string[];
   aggregation: string[];
+}
+
+export type ParsingLogs = {
+  setup: string[];
+  assetLogs: Record<string, AssetLog>;
+  summary: string[];
 }

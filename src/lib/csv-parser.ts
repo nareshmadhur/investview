@@ -1,4 +1,4 @@
-import { type Asset, type Transaction } from '@/types';
+import { type Asset, type Transaction, type GrowwSchemaMapping } from '@/types';
 
 export type CsvTemplate = 'default' | 'groww';
 
@@ -80,12 +80,11 @@ const parseDefault = (lines: string[]): ParseResult => {
 }
 
 // The Groww parser returns both aggregated assets and raw transactions
-const parseGroww = (lines: string[]): ParseResult => {
+const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseResult => {
     if (lines.length === 0) {
         return { assets: [], transactions: [], error: 'The uploaded Groww CSV file is empty.' };
     }
     
-    // Groww files can be tab-separated, so we check for that
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
     const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
     
@@ -93,18 +92,27 @@ const parseGroww = (lines: string[]): ParseResult => {
         return { assets: [], transactions: [], error: 'Groww CSV file must contain a header row and at least one data row.' };
     }
 
-    const requiredHeaders = ['Stock name', 'Type', 'Quantity', 'Price', 'Execution date and time', 'Order status'];
+    const mapping: GrowwSchemaMapping = schemaMapping || {
+        asset: 'Stock name',
+        type: 'Type',
+        quantity: 'Quantity',
+        price: 'Price',
+        date: 'Execution date and time',
+        status: 'Order status',
+    };
+
+    const requiredHeaders = Object.values(mapping);
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
         return { assets: [], transactions: [], error: `Invalid Groww CSV headers. Missing: ${missingHeaders.join(', ')}` };
     }
 
-    const assetIndex = headers.indexOf('Stock name');
-    const quantityIndex = headers.indexOf('Quantity');
-    const priceIndex = headers.indexOf('Price');
-    const typeIndex = headers.indexOf('Type');
-    const dateIndex = headers.indexOf('Execution date and time');
-    const statusIndex = headers.indexOf('Order status');
+    const assetIndex = headers.indexOf(mapping.asset);
+    const quantityIndex = headers.indexOf(mapping.quantity);
+    const priceIndex = headers.indexOf(mapping.price);
+    const typeIndex = headers.indexOf(mapping.type);
+    const dateIndex = headers.indexOf(mapping.date);
+    const statusIndex = headers.indexOf(mapping.status);
 
     const holdings: Record<string, { quantity: number; totalCost: number }> = {};
     const transactions: Transaction[] = [];
@@ -119,7 +127,6 @@ const parseGroww = (lines: string[]): ParseResult => {
             continue;
         }
 
-        // Only process completed orders
         if (statusIndex !== -1 && data[statusIndex].toUpperCase() !== 'COMPLETED') {
             continue;
         }
@@ -131,8 +138,8 @@ const parseGroww = (lines: string[]): ParseResult => {
         const dateStr = data[dateIndex];
         const date = new Date(dateStr);
 
-        if (isNaN(quantity) || isNaN(price) || isNaN(date.getTime())) {
-            console.warn(`Skipping Groww row ${i + 1} due to invalid number or date format.`);
+        if (!assetName || isNaN(quantity) || isNaN(price) || isNaN(date.getTime())) {
+            console.warn(`Skipping Groww row ${i + 1} due to invalid or missing data.`);
             continue;
         }
         
@@ -156,10 +163,8 @@ const parseGroww = (lines: string[]): ParseResult => {
             holdings[assetName].totalCost += quantity * price;
         } else if (type === 'SELL') {
             const holding = holdings[assetName];
-            // Only adjust cost basis if there are shares to sell
             if (holding.quantity > 0) {
                 const currentAvgPrice = holding.totalCost / holding.quantity;
-                // Reduce cost basis by the average price of shares sold, not the sale price
                 holding.totalCost -= quantity * (isNaN(currentAvgPrice) ? price : currentAvgPrice);
             }
             holding.quantity -= quantity;
@@ -167,14 +172,14 @@ const parseGroww = (lines: string[]): ParseResult => {
     }
 
     const assets: Asset[] = Object.entries(holdings)
-        .filter(([, holding]) => holding.quantity > 0.00001)
+        .filter(([, holding]) => holding.quantity > 0.0001)
         .map(([assetName, holding]) => {
-            const averagePrice = holding.totalCost / holding.quantity;
+            const averagePrice = holding.quantity > 0 ? holding.totalCost / holding.quantity : 0;
             return {
                 asset: assetName,
                 quantity: holding.quantity,
-                purchasePrice: isNaN(averagePrice) ? 0 : averagePrice,
-                currentPrice: isNaN(averagePrice) ? 0 : averagePrice, // Placeholder
+                purchasePrice: averagePrice < 0 ? 0 : averagePrice,
+                currentPrice: averagePrice < 0 ? 0 : averagePrice, // Placeholder
                 assetType: 'Stock',
             };
         });
@@ -182,7 +187,7 @@ const parseGroww = (lines: string[]): ParseResult => {
     return { assets, transactions };
 };
 
-export const parseCSV = (csvText: string, template: CsvTemplate = 'default'): ParseResult => {
+export const parseCSV = (csvText: string, template: CsvTemplate = 'default', growwSchema?: GrowwSchemaMapping): ParseResult => {
   if (!csvText) {
     return { assets: [], transactions: [], error: 'The uploaded CSV file is empty.' };
   }
@@ -190,7 +195,7 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default'): Pa
   
   switch(template) {
     case 'groww':
-      return parseGroww(lines);
+      return parseGroww(lines, growwSchema);
     case 'default':
     default:
       return parseDefault(lines);

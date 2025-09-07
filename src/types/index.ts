@@ -20,3 +20,12 @@ export type Portfolio = {
   transactions: Transaction[];
   totalCost: number; // Net invested value of current holdings
 };
+
+export type GrowwSchemaMapping = {
+  asset: string;
+  type: string;
+  quantity: string;
+  price: string;
+  date: string;
+  status: string;
+};

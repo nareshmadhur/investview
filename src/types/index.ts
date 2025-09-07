@@ -30,3 +30,9 @@ export type GrowwSchemaMapping = {
   date: string;
   status: string;
 };
+
+export type ParsingLogs = {
+  setup: string[];
+  transactions: string[];
+  aggregation: string[];
+}

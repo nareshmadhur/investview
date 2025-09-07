@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Asset, GrowwSchemaMapping } from '@/types';
+import type { Asset, GrowwSchemaMapping, ParsingLogs } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, FileText, Settings, BookOpen } from 'lucide-react';
 
@@ -23,13 +24,19 @@ const defaultGrowwSchema: GrowwSchemaMapping = {
   status: 'Order status',
 };
 
+const initialLogs: ParsingLogs = {
+  setup: [],
+  transactions: [],
+  aggregation: [],
+};
+
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('default');
   const [growwSchema, setGrowwSchema] = useState<GrowwSchemaMapping>(defaultGrowwSchema);
-  const [parsingLogs, setParsingLogs] = useState<string[]>([]);
+  const [parsingLogs, setParsingLogs] = useState<ParsingLogs>(initialLogs);
   const { toast } = useToast();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,14 +45,14 @@ export default function AdminPage() {
       setIsParsing(true);
       setFileName(file.name);
       setAssets(null);
-      setParsingLogs([]);
+      setParsingLogs(initialLogs);
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
           const result: ParseResult = parseCSV(text, csvTemplate, csvTemplate === 'groww' ? growwSchema : undefined);
           
-          setParsingLogs(result.logs || []);
+          setParsingLogs(result.logs || initialLogs);
 
           if (result.error) {
             throw new Error(result.error);
@@ -84,6 +91,10 @@ export default function AdminPage() {
   };
   
   const hasAssets = useMemo(() => assets !== null, [assets]);
+  const hasLogs = useMemo(() => {
+    return parsingLogs && (parsingLogs.setup.length > 0 || parsingLogs.transactions.length > 0 || parsingLogs.aggregation.length > 0)
+  }, [parsingLogs]);
+
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
@@ -171,7 +182,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {parsingLogs.length > 0 && (
+          {hasLogs && (
              <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -179,15 +190,42 @@ export default function AdminPage() {
                     Parsing Logs
                   </CardTitle>
                   <CardDescription>
-                    A step-by-step log of how the CSV file was processed.
+                    A step-by-step log of how the CSV file was processed, broken down by stage.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-64 w-full rounded-md border p-4">
-                    <pre className="text-xs whitespace-pre-wrap">
-                      {parsingLogs.join('\n')}
-                    </pre>
-                  </ScrollArea>
+                    <Accordion type="multiple" className="w-full" defaultValue={['setup', 'transactions', 'aggregation']}>
+                        <AccordionItem value="setup">
+                            <AccordionTrigger>Stage 1: Setup & Initialization</AccordionTrigger>
+                            <AccordionContent>
+                                <ScrollArea className="h-48 w-full rounded-md border p-4">
+                                    <pre className="text-xs whitespace-pre-wrap">
+                                      {parsingLogs.setup.join('\n')}
+                                    </pre>
+                                </ScrollArea>
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="transactions">
+                            <AccordionTrigger>Stage 2: Transaction Processing</AccordionTrigger>
+                            <AccordionContent>
+                                <ScrollArea className="h-72 w-full rounded-md border p-4">
+                                     <pre className="text-xs whitespace-pre-wrap">
+                                      {parsingLogs.transactions.join('\n')}
+                                    </pre>
+                                </ScrollArea>
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="aggregation">
+                            <AccordionTrigger>Stage 3: Holdings Aggregation</AccordionTrigger>
+                            <AccordionContent>
+                                <ScrollArea className="h-48 w-full rounded-md border p-4">
+                                     <pre className="text-xs whitespace-pre-wrap">
+                                      {parsingLogs.aggregation.join('\n')}
+                                    </pre>
+                                </ScrollArea>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                 </CardContent>
               </Card>
           )}

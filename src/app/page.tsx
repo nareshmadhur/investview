@@ -67,7 +67,11 @@ export default function Home() {
           }
 
           if (result.assets.length === 0 && result.transactions.length === 0) {
-            throw new Error("No valid data found in the file. Please check the file format and content.");
+             toast({
+              variant: "default",
+              title: "Parsing successful, but no transaction data found",
+              description: "The file was parsed, but no valid transaction rows were found.",
+            });
           }
           const calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions);
           setPortfolio(calculatedPortfolio);

@@ -104,7 +104,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     const requiredHeaders = Object.values(mapping);
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
-        return { assets: [], transactions: [], error: `Invalid Groww CSV headers. Missing: ${missingHeaders.join(', ')}` };
+        return { assets: [], transactions: [], error: `Invalid Groww CSV headers. Your file is missing the following columns: ${missingHeaders.join(', ')}. Please configure the schema in the admin panel if your column names are different.` };
     }
 
     const assetIndex = headers.indexOf(mapping.asset);

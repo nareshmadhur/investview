@@ -138,7 +138,7 @@ export default function AdminPage() {
                    Groww Schema Configuration
                 </CardTitle>
                 <CardDescription>
-                  Define the column names from your Groww CSV file.
+                  Define the column names from your Groww CSV file. The parser will look for these exact names in the header row.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -164,7 +164,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {hasAssets && (
+          {hasAssets && assets.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Parsed Asset Data</CardTitle>
@@ -173,7 +173,6 @@ export default function AdminPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {assets.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -196,13 +195,15 @@ export default function AdminPage() {
                       ))}
                     </TableBody>
                   </Table>
-                ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    <p>No holdings to display. All assets may have been sold.</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
+          )}
+
+          {hasAssets && assets.length === 0 && (
+             <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
+                <h3 className="text-lg font-semibold">No Holdings Found</h3>
+                <p>All assets may have been sold, or the file contained no valid transactions.</p>
+             </div>
           )}
 
           {!hasAssets && !isParsing &&

@@ -81,12 +81,18 @@ const parseDefault = (lines: string[]): ParseResult => {
 
 // The Groww parser returns both aggregated assets and raw transactions
 const parseGroww = (lines: string[]): ParseResult => {
+    if (lines.length === 0) {
+        return { assets: [], transactions: [], error: 'The uploaded Groww CSV file is empty.' };
+    }
+    
+    // Groww files can be tab-separated, so we check for that
+    const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
+    
     if (lines.length < 2) {
         return { assets: [], transactions: [], error: 'Groww CSV file must contain a header row and at least one data row.' };
     }
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    
     const requiredHeaders = ['Stock name', 'Type', 'Quantity', 'Price', 'Execution date and time', 'Order status'];
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
@@ -107,7 +113,7 @@ const parseGroww = (lines: string[]): ParseResult => {
         const line = lines[i];
         if (!line.trim()) continue;
 
-        const data = line.split(',').map(d => d.trim().replace(/"/g, ''));
+        const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
         if (data.length < headers.length) {
             console.warn(`Skipping malformed Groww row ${i + 1}: Expected ${headers.length} columns, but got ${data.length}.`);
             continue;
@@ -178,7 +184,7 @@ const parseGroww = (lines: string[]): ParseResult => {
 
 export const parseCSV = (csvText: string, template: CsvTemplate = 'default'): ParseResult => {
   if (!csvText) {
-    return { assets: [], transactions: [] };
+    return { assets: [], transactions: [], error: 'The uploaded CSV file is empty.' };
   }
   const lines = csvText.trim().split(/\r?\n/);
   

@@ -97,7 +97,7 @@ export default function Home() {
       totalCost += asset.quantity * asset.purchasePrice;
     });
 
-    return { assets, transactions, totalCost };
+    return { assets, transactions: transactions || [], totalCost };
   };
 
   const generateAISuggestions = async () => {

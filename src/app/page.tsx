@@ -216,7 +216,7 @@ export default function Home() {
           {portfolio && (
             <>
               <div className="grid gap-4 md:grid-cols-3">
-                <KpiCard title="Net Invested Value" value={portfolio.totalCost} format="currency" icon={TrendingUp} />
+                <KpiCard title="Net Cost of Holdings" value={portfolio.totalCost} format="currency" icon={TrendingUp} />
                 <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
                 <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />
               </div>

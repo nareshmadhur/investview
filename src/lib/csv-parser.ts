@@ -6,22 +6,29 @@ export type ParseResult = {
   assets: Asset[];
   transactions: Transaction[];
   error?: string;
+  logs: string[];
 };
 
 // The default parser returns both aggregated assets and raw transactions
 const parseDefault = (lines: string[]): ParseResult => {
+  const logs: string[] = [];
   if (lines.length < 2) {
-    return { assets: [], transactions: [], error: 'CSV file must contain a header row and at least one data row.' };
+    const error = 'CSV file must contain a header row and at least one data row.';
+    logs.push(`Error: ${error}`);
+    return { assets: [], transactions: [], error, logs };
   }
 
   const headers = lines[0].split(',').map(h => h.trim());
+  logs.push(`Detected headers: ${headers.join(', ')}`);
   const assets: Asset[] = [];
   const transactions: Transaction[] = [];
 
   const requiredHeaders = ['Asset', 'Quantity', 'PurchasePrice', 'CurrentPrice', 'AssetType'];
   const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
   if (missingHeaders.length > 0) {
-    return { assets: [], transactions: [], error: `Invalid CSV headers. Missing required headers: ${missingHeaders.join(', ')}` };
+    const error = `Invalid CSV headers. Missing required headers: ${missingHeaders.join(', ')}`;
+    logs.push(`Error: ${error}`);
+    return { assets: [], transactions: [], error, logs };
   }
 
   const assetIndex = headers.indexOf('Asset');
@@ -29,21 +36,27 @@ const parseDefault = (lines: string[]): ParseResult => {
   const purchasePriceIndex = headers.indexOf('PurchasePrice');
   const currentPriceIndex = headers.indexOf('CurrentPrice');
   const assetTypeIndex = headers.indexOf('AssetType');
-  const dateIndex = headers.indexOf('Date'); // Assuming an optional Date column
+  const dateIndex = headers.indexOf('Date');
 
+  logs.push('Starting to process rows...');
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
-    if (!line.trim()) continue;
+    if (!line.trim()) {
+      logs.push(`Skipping empty row ${i + 1}.`);
+      continue;
+    }
     
     const data = line.split(',');
-    if (data.length < headers.length) { // Allow for optional date
-       console.warn(`Skipping malformed row ${i + 1}: Expected at least ${headers.length} columns, but got ${data.length}.`);
+    logs.push(`Processing row ${i + 1}: [${data.join(', ')}]`);
+
+    if (data.length < headers.length) {
+       logs.push(`Warning: Skipping malformed row ${i + 1}. Expected at least ${requiredHeaders.length} columns, but got ${data.length}.`);
        continue;
     }
 
     const assetType = data[assetTypeIndex].trim();
     if (assetType !== 'Stock' && assetType !== 'Cryptocurrency' && assetType !== 'Commodity') {
-      console.warn(`Skipping row ${i + 1} with invalid AssetType: ${assetType}`);
+      logs.push(`Warning: Skipping row ${i + 1} with invalid AssetType: ${assetType}`);
       continue;
     }
 
@@ -54,7 +67,7 @@ const parseDefault = (lines: string[]): ParseResult => {
 
 
     if (isNaN(quantity) || isNaN(purchasePrice) || isNaN(currentPrice)) {
-      console.warn(`Skipping row ${i + 1} due to invalid number format.`);
+      logs.push(`Warning: Skipping row ${i + 1} due to invalid number format.`);
       continue;
     }
 
@@ -66,30 +79,40 @@ const parseDefault = (lines: string[]): ParseResult => {
       assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
     });
     
-    // For default, we assume all entries are 'BUY' for transaction history
-    transactions.push({
+    const transaction = {
         asset: data[assetIndex].trim(),
         quantity,
         price: purchasePrice,
-        type: 'BUY',
+        type: 'BUY' as 'BUY' | 'SELL',
         date,
         assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
-    });
+    };
+    transactions.push(transaction);
+    logs.push(`Successfully parsed transaction for row ${i + 1}: ${JSON.stringify(transaction)}`);
   }
-  return { assets, transactions };
+  logs.push(`Finished processing. Total assets found: ${assets.length}. Total transactions: ${transactions.length}.`);
+  return { assets, transactions, logs };
 }
 
 // The Groww parser returns both aggregated assets and raw transactions
 const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseResult => {
+    const logs: string[] = [];
     if (lines.length === 0) {
-        return { assets: [], transactions: [], error: 'The uploaded Groww CSV file is empty.' };
+        const error = 'The uploaded Groww CSV file is empty.';
+        logs.push(`Error: ${error}`);
+        return { assets: [], transactions: [], error, logs };
     }
     
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    logs.push(`Detected delimiter: "${delimiter === '\t' ? 'Tab' : 'Comma'}"`);
+
     const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
+    logs.push(`Detected headers: ${headers.join(', ')}`);
     
     if (lines.length < 2) {
-        return { assets: [], transactions: [], error: 'Groww CSV file must contain a header row and at least one data row.' };
+        const error = 'Groww CSV file must contain a header row and at least one data row.';
+        logs.push(`Error: ${error}`);
+        return { assets: [], transactions: [], error, logs };
     }
 
     const mapping: GrowwSchemaMapping = schemaMapping || {
@@ -100,11 +123,14 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         date: 'Execution date and time',
         status: 'Order status',
     };
+    logs.push(`Using schema mapping: ${JSON.stringify(mapping)}`);
 
     const requiredHeaders = Object.values(mapping);
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
-        return { assets: [], transactions: [], error: `Invalid Groww CSV headers. Your file is missing the following columns: ${missingHeaders.join(', ')}. Please configure the schema in the admin panel if your column names are different.` };
+        const error = `Invalid Groww CSV headers. Your file is missing the following columns: ${missingHeaders.join(', ')}. Please configure the schema in the admin panel if your column names are different.`;
+        logs.push(`Error: ${error}`);
+        return { assets: [], transactions: [], error, logs };
     }
 
     const assetIndex = headers.indexOf(mapping.asset);
@@ -117,17 +143,25 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     const holdings: Record<string, { quantity: number; totalCost: number }> = {};
     const transactions: Transaction[] = [];
 
+    logs.push('Starting to process rows...');
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
-        if (!line.trim()) continue;
-
-        const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
-        if (data.length < headers.length) {
-            console.warn(`Skipping malformed Groww row ${i + 1}: Expected ${headers.length} columns, but got ${data.length}.`);
+        if (!line.trim()) {
+            logs.push(`Skipping empty row ${i + 1}.`);
             continue;
         }
 
-        if (statusIndex !== -1 && data[statusIndex].toUpperCase() !== 'COMPLETED') {
+        const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
+        logs.push(`Processing row ${i + 1}: [${data.join(', ')}]`);
+
+        if (data.length < headers.length) {
+            logs.push(`Warning: Skipping malformed Groww row ${i + 1}. Expected ${headers.length} columns, but got ${data.length}.`);
+            continue;
+        }
+
+        const status = data[statusIndex].toUpperCase();
+        if (status !== 'COMPLETED') {
+            logs.push(`Skipping row ${i + 1}: Order status is "${data[statusIndex]}", not "COMPLETED".`);
             continue;
         }
 
@@ -139,20 +173,25 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const date = new Date(dateStr);
 
         if (!assetName || isNaN(quantity) || isNaN(price) || isNaN(date.getTime())) {
-            console.warn(`Skipping Groww row ${i + 1} due to invalid or missing data.`);
+            logs.push(`Warning: Skipping row ${i + 1} due to invalid or missing data. Asset: ${assetName}, Qty: ${quantity}, Price: ${price}, Date: ${dateStr}`);
             continue;
         }
         
-        if (type !== 'BUY' && type !== 'SELL') continue;
+        if (type !== 'BUY' && type !== 'SELL') {
+            logs.push(`Skipping row ${i + 1}: Invalid transaction type "${type}".`);
+            continue;
+        }
 
-        transactions.push({
+        const transaction = {
             asset: assetName,
             quantity,
             price,
             type: type as 'BUY' | 'SELL',
             date,
-            assetType: 'Stock' // Groww CSV is for stocks
-        });
+            assetType: 'Stock' as 'Stock',
+        };
+        transactions.push(transaction);
+        logs.push(`Successfully parsed transaction for row ${i + 1}: ${JSON.stringify(transaction)}`);
 
         if (!holdings[assetName]) {
             holdings[assetName] = { quantity: 0, totalCost: 0 };
@@ -161,35 +200,44 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         if (type === 'BUY') {
             holdings[assetName].quantity += quantity;
             holdings[assetName].totalCost += quantity * price;
+            logs.push(`Updated holdings for ${assetName}: BUY ${quantity} @ ${price}. New Qty: ${holdings[assetName].quantity}, New Total Cost: ${holdings[assetName].totalCost}`);
         } else if (type === 'SELL') {
             const holding = holdings[assetName];
             if (holding.quantity > 0) {
-                const currentAvgPrice = holding.totalCost / holding.quantity;
-                holding.totalCost -= quantity * (isNaN(currentAvgPrice) ? price : currentAvgPrice);
+                const avgPriceBeforeSell = holding.totalCost / holding.quantity;
+                holding.totalCost -= quantity * (isNaN(avgPriceBeforeSell) ? price : avgPriceBeforeSell);
+            } else {
+                 holding.totalCost -= quantity * price; // Cost can be negative if shorting
             }
             holding.quantity -= quantity;
+            logs.push(`Updated holdings for ${assetName}: SELL ${quantity} @ ${price}. New Qty: ${holdings[assetName].quantity}, New Total Cost: ${holdings[assetName].totalCost}`);
         }
     }
 
+    logs.push('Calculating final aggregated assets...');
     const assets: Asset[] = Object.entries(holdings)
-        .filter(([, holding]) => holding.quantity > 0.0001) // Use a small threshold for floating point
+        .filter(([, holding]) => holding.quantity > 0.00001) // Use a small threshold for floating point
         .map(([assetName, holding]) => {
             const averagePrice = holding.quantity > 0 ? holding.totalCost / holding.quantity : 0;
-            return {
+            const finalAsset = {
                 asset: assetName,
                 quantity: holding.quantity,
-                purchasePrice: averagePrice < 0 ? 0 : averagePrice, // Ensure purchase price isn't negative
+                purchasePrice: averagePrice < 0 ? 0 : averagePrice,
                 currentPrice: averagePrice < 0 ? 0 : averagePrice, // Placeholder
-                assetType: 'Stock',
+                assetType: 'Stock' as 'Stock',
             };
+            logs.push(`Final asset: ${JSON.stringify(finalAsset)}`);
+            return finalAsset;
         });
 
-    return { assets, transactions };
+    logs.push(`Finished processing. Total aggregated assets: ${assets.length}. Total transactions: ${transactions.length}.`);
+    return { assets, transactions, logs };
 };
 
 export const parseCSV = (csvText: string, template: CsvTemplate = 'default', growwSchema?: GrowwSchemaMapping): ParseResult => {
   if (!csvText) {
-    return { assets: [], transactions: [], error: 'The uploaded CSV file is empty.' };
+    const error = 'The uploaded CSV file is empty.';
+    return { assets: [], transactions: [], error, logs: [`Error: ${error}`] };
   }
   const lines = csvText.trim().split(/\r?\n/);
   

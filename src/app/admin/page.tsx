@@ -10,8 +10,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen } from 'lucide-react';
 
 const defaultGrowwSchema: GrowwSchemaMapping = {
   asset: 'Stock name',
@@ -28,6 +29,7 @@ export default function AdminPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('default');
   const [growwSchema, setGrowwSchema] = useState<GrowwSchemaMapping>(defaultGrowwSchema);
+  const [parsingLogs, setParsingLogs] = useState<string[]>([]);
   const { toast } = useToast();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,14 +38,19 @@ export default function AdminPage() {
       setIsParsing(true);
       setFileName(file.name);
       setAssets(null);
+      setParsingLogs([]);
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
           const result: ParseResult = parseCSV(text, csvTemplate, csvTemplate === 'groww' ? growwSchema : undefined);
+          
+          setParsingLogs(result.logs || []);
+
           if (result.error) {
             throw new Error(result.error);
           }
+          
           if (result.assets.length === 0) {
             toast({
               variant: "default",
@@ -62,7 +69,7 @@ export default function AdminPage() {
             description: error instanceof Error ? error.message : "An unknown error occurred.",
           });
           setAssets(null);
-          setFileName(null);
+          // Don't clear filename on error, so user knows which file failed
         } finally {
           setIsParsing(false);
         }
@@ -164,6 +171,27 @@ export default function AdminPage() {
             </div>
           )}
 
+          {parsingLogs.length > 0 && (
+             <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-6 h-6" />
+                    Parsing Logs
+                  </CardTitle>
+                  <CardDescription>
+                    A step-by-step log of how the CSV file was processed.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-64 w-full rounded-md border p-4">
+                    <pre className="text-xs whitespace-pre-wrap">
+                      {parsingLogs.join('\n')}
+                    </pre>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+          )}
+
           {hasAssets && assets.length > 0 && (
             <Card>
               <CardHeader>
@@ -202,7 +230,7 @@ export default function AdminPage() {
           {hasAssets && assets.length === 0 && (
              <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
                 <h3 className="text-lg font-semibold">No Holdings Found</h3>
-                <p>All assets may have been sold, or the file contained no valid transactions.</p>
+                <p>All assets may have been sold, or the file contained no valid transactions. Check the parsing logs above for details.</p>
              </div>
           )}
 

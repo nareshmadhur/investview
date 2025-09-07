@@ -2,10 +2,16 @@ import { type Asset, type Transaction } from '@/types';
 
 export type CsvTemplate = 'default' | 'groww';
 
+export type ParseResult = {
+  assets: Asset[];
+  transactions: Transaction[];
+  error?: string;
+};
+
 // The default parser returns both aggregated assets and raw transactions
-const parseDefault = (lines: string[]): { assets: Asset[], transactions: Transaction[] } => {
+const parseDefault = (lines: string[]): ParseResult => {
   if (lines.length < 2) {
-    throw new Error('CSV file must contain a header row and at least one data row.');
+    return { assets: [], transactions: [], error: 'CSV file must contain a header row and at least one data row.' };
   }
 
   const headers = lines[0].split(',').map(h => h.trim());
@@ -15,7 +21,7 @@ const parseDefault = (lines: string[]): { assets: Asset[], transactions: Transac
   const requiredHeaders = ['Asset', 'Quantity', 'PurchasePrice', 'CurrentPrice', 'AssetType'];
   const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
   if (missingHeaders.length > 0) {
-    throw new Error(`Invalid CSV headers. Missing required headers: ${missingHeaders.join(', ')}`);
+    return { assets: [], transactions: [], error: `Invalid CSV headers. Missing required headers: ${missingHeaders.join(', ')}` };
   }
 
   const assetIndex = headers.indexOf('Asset');
@@ -74,17 +80,17 @@ const parseDefault = (lines: string[]): { assets: Asset[], transactions: Transac
 }
 
 // The Groww parser returns both aggregated assets and raw transactions
-const parseGroww = (lines: string[]): { assets: Asset[], transactions: Transaction[] } => {
+const parseGroww = (lines: string[]): ParseResult => {
     if (lines.length < 2) {
-        throw new Error('Groww CSV file must contain a header row and at least one data row.');
+        return { assets: [], transactions: [], error: 'Groww CSV file must contain a header row and at least one data row.' };
     }
 
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
     
-    const requiredHeaders = ['Stock name', 'Quantity', 'Price', 'Type', 'Execution date and time'];
+    const requiredHeaders = ['Stock name', 'Type', 'Quantity', 'Price', 'Execution date and time', 'Order status'];
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
-        throw new Error(`Invalid Groww CSV headers. Missing required headers: ${missingHeaders.join(', ')}`);
+        return { assets: [], transactions: [], error: `Invalid Groww CSV headers. Missing: ${missingHeaders.join(', ')}` };
     }
 
     const assetIndex = headers.indexOf('Stock name');
@@ -170,7 +176,7 @@ const parseGroww = (lines: string[]): { assets: Asset[], transactions: Transacti
     return { assets, transactions };
 };
 
-export const parseCSV = (csvText: string, template: CsvTemplate = 'default'): { assets: Asset[], transactions: Transaction[] } => {
+export const parseCSV = (csvText: string, template: CsvTemplate = 'default'): ParseResult => {
   if (!csvText) {
     return { assets: [], transactions: [] };
   }

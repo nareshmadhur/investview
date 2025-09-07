@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
-import { parseCSV, type CsvTemplate } from '@/lib/csv-parser';
+import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -60,11 +60,16 @@ export default function Home() {
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
-          const { assets, transactions } = parseCSV(text, csvTemplate);
-          if (assets.length === 0 && transactions.length === 0) {
+          const result: ParseResult = parseCSV(text, csvTemplate);
+          
+          if (result.error) {
+            throw new Error(result.error);
+          }
+
+          if (result.assets.length === 0 && result.transactions.length === 0) {
             throw new Error("No valid data found in the file. Please check the file format and content.");
           }
-          const calculatedPortfolio = calculatePortfolioMetrics(assets, transactions);
+          const calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions);
           setPortfolio(calculatedPortfolio);
           localStorage.setItem('portfolioData', JSON.stringify(calculatedPortfolio));
         } catch (error) {

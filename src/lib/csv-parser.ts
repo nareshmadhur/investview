@@ -137,10 +137,14 @@ const parseGroww = (lines: string[]): { assets: Asset[], transactions: Transacti
             holdings[assetName].quantity += quantity;
             holdings[assetName].totalCost += quantity * price;
         } else if (type === 'SELL') {
-            const currentAvgPrice = holdings[assetName].totalCost / holdings[assetName].quantity;
-            holdings[assetName].quantity -= quantity;
-            // Reduce cost basis by the average price of shares sold, not the sale price
-            holdings[assetName].totalCost -= quantity * (isNaN(currentAvgPrice) ? price : currentAvgPrice);
+            const holding = holdings[assetName];
+            // Only adjust cost basis if there are shares to sell
+            if (holding.quantity > 0) {
+                const currentAvgPrice = holding.totalCost / holding.quantity;
+                // Reduce cost basis by the average price of shares sold, not the sale price
+                holding.totalCost -= quantity * (isNaN(currentAvgPrice) ? price : currentAvgPrice);
+            }
+            holding.quantity -= quantity;
         }
     }
 
@@ -152,7 +156,7 @@ const parseGroww = (lines: string[]): { assets: Asset[], transactions: Transacti
                 asset: assetName,
                 quantity: holding.quantity,
                 purchasePrice: isNaN(averagePrice) ? 0 : averagePrice,
-                currentPrice: isNaN(averagePrice) ? 0 : averagePrice,
+                currentPrice: isNaN(averagePrice) ? 0 : averagePrice, // Placeholder
                 assetType: 'Stock',
             };
         });

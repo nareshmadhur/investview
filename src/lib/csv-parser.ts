@@ -7,6 +7,7 @@ export type ParseResult = {
   transactions: Transaction[];
   error?: string;
   logs: ParsingLogs;
+  realizedProfit?: number;
 };
 
 const initialLogs: ParsingLogs = {
@@ -175,6 +176,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     const statusIndex = headers.indexOf(mapping.status);
 
     const holdings: Record<string, { quantity: number; totalCost: number }> = {};
+    let realizedProfit = 0;
     const transactions: Transaction[] = [];
 
     logs.transactions.push('Starting to process rows...');
@@ -239,25 +241,29 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
             const holding = holdings[assetName];
             logs.aggregation.push(`Processing SELL for ${assetName}. State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}.`);
             
-            let costBasisAdjustment = 0;
             if (holding.quantity > 0) {
                 const avgPriceBeforeSell = holding.totalCost / holding.quantity;
-                 logs.aggregation.push(`To calculate the cost of the shares being sold, using the average purchase price: ${avgPriceBeforeSell.toFixed(2)}.`);
-                costBasisAdjustment = quantity * avgPriceBeforeSell;
+                logs.aggregation.push(`To calculate profit and adjust cost basis, using the average purchase price: ${avgPriceBeforeSell.toFixed(2)}.`);
+                
+                const profitOnThisSale = (price - avgPriceBeforeSell) * quantity;
+                realizedProfit += profitOnThisSale;
+                logs.aggregation.push(`Profit from this sale: (${price.toFixed(2)} - ${avgPriceBeforeSell.toFixed(2)}) * ${quantity} = ${profitOnThisSale.toFixed(2)}. Total Realized Profit: ${realizedProfit.toFixed(2)}`);
+
+                const costBasisAdjustment = quantity * avgPriceBeforeSell;
+                holding.totalCost -= costBasisAdjustment;
+
+                // Clamp to zero if we sold exactly what we had to avoid floating point dust
+                if (Math.abs(holding.quantity - quantity) < 0.00001) {
+                    holding.totalCost = 0;
+                }
+
             } else {
-                 logs.aggregation.push(`No existing quantity. Cost basis adjustment is based on current sell price (short selling): ${price}`);
-                 costBasisAdjustment = quantity * price; 
+                 // This assumes short selling is not tracked for profit in this simple model
+                 logs.aggregation.push(`Short sell detected or no prior buy history. Cost basis adjustment is based on current sell price: ${price}`);
             }
 
             holding.quantity -= quantity;
-            holding.totalCost -= costBasisAdjustment;
-
-            // If we sold more than we had (short position), the cost basis can become negative. Clamp it to zero for simplicity for now.
-            if(holding.totalCost < 0) {
-                logs.aggregation.push(`Warning: Total cost for ${assetName} went negative after sell. Clamping to 0.`);
-                holding.totalCost = 0;
-            }
-            logs.aggregation.push(`Adjusted Total Cost by ${costBasisAdjustment.toFixed(2)}. State after: Qty=${holding.quantity.toFixed(4)}, New Total Cost=${holding.totalCost.toFixed(2)}.`);
+            logs.aggregation.push(`State after: Qty=${holding.quantity.toFixed(4)}, New Total Cost=${holding.totalCost.toFixed(2)}.`);
         }
     }
 
@@ -277,8 +283,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
             return finalAsset;
         });
 
-    logs.aggregation.push(`Finished processing. Total aggregated assets: ${assets.length}. Total transactions: ${transactions.length}.`);
-    return { assets, transactions, logs };
+    logs.aggregation.push(`Finished processing. Total aggregated assets: ${assets.length}. Total transactions: ${transactions.length}. Realized Profit: ${realizedProfit.toFixed(2)}`);
+    return { assets, transactions, logs, realizedProfit };
 };
 
 export const parseCSV = (csvText: string, template: CsvTemplate = 'default', growwSchema?: GrowwSchemaMapping): ParseResult => {

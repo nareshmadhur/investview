@@ -44,6 +44,10 @@ export default function Home() {
         if (!parsedData.currency) {
             parsedData.currency = 'USD';
         }
+        
+        if (parsedData.realizedProfit === undefined) {
+          parsedData.realizedProfit = 0;
+        }
 
         setPortfolio(parsedData);
         setFileName("loaded_from_cache.csv");
@@ -79,7 +83,7 @@ export default function Home() {
             });
           }
           const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
-          const calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency);
+          const calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency, result.realizedProfit);
           setPortfolio(calculatedPortfolio);
           localStorage.setItem('portfolioData', JSON.stringify(calculatedPortfolio));
         } catch (error) {
@@ -101,13 +105,13 @@ export default function Home() {
     event.target.value = '';
   };
   
-  const calculatePortfolioMetrics = (assets: Asset[], transactions: Transaction[], currency: 'USD' | 'INR'): Portfolio => {
+  const calculatePortfolioMetrics = (assets: Asset[], transactions: Transaction[], currency: 'USD' | 'INR', realizedProfit: number = 0): Portfolio => {
     let totalCost = 0;
     assets.forEach(asset => {
       totalCost += asset.quantity * asset.purchasePrice;
     });
 
-    return { assets, transactions: transactions || [], totalCost, currency };
+    return { assets, transactions: transactions || [], totalCost, currency, realizedProfit };
   };
 
   const generateAISuggestions = async () => {
@@ -231,14 +235,14 @@ export default function Home() {
           {portfolio && (
             <>
               <div className="grid gap-4 md:grid-cols-3">
-                <KpiCard 
-                  title="Net Cost of Holdings" 
-                  value={portfolio.totalCost} 
+                 <KpiCard 
+                  title="Realized Profit" 
+                  value={portfolio.realizedProfit || 0} 
                   format="currency" 
                   icon={TrendingUp} 
                   currency={portfolio.currency}
-                  fractionDigits={0}
-                  tooltipText="The total amount paid for the assets you currently own, calculated on an average cost basis after accounting for buys and sells."
+                  fractionDigits={2}
+                  tooltipText="The total profit or loss from all completed sales. This is calculated by summing up (Sell Price - Average Buy Price) * Quantity for every sale transaction."
                 />
                 <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
                 <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />

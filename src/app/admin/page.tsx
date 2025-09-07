@@ -216,7 +216,7 @@ export default function AdminPage() {
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="aggregation">
-                            <AccordionTrigger>Stage 3: Holdings Aggregation</AccordionTrigger>
+                            <AccordionTrigger>Stage 3: Holdings Aggregation & Profit Calculation</AccordionTrigger>
                             <AccordionContent>
                                 <ScrollArea className="h-48 w-full rounded-md border p-4">
                                      <pre className="text-xs whitespace-pre-wrap">

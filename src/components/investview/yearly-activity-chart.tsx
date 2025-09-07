@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
@@ -67,7 +68,7 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
     if (value > 10000000) return `${symbol}${(value / 10000000).toFixed(2)}Cr`;
     if (value > 100000) return `${symbol}${(value / 100000).toFixed(2)}L`;
     if (value > 1000) return `${symbol}${(value / 1000).toFixed(1)}k`;
-    return `${symbol}${value}`;
+    return `${symbol}${value.toFixed(0)}`;
   }
 
 

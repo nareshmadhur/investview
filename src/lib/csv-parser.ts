@@ -193,24 +193,25 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         }
 
         const quantity = parseFloat(data[quantityIndex]);
-        const price = parseFloat(data[priceIndex]);
+        const totalValue = parseFloat(data[priceIndex]);
         const type = data[typeIndex].toUpperCase();
         const dateStr = data[dateIndex];
         const date = parseGrowwDate(dateStr);
-
-        if (!assetName || isNaN(quantity) || isNaN(price) || !date || isNaN(date.getTime())) {
-            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid or missing data. Asset: ${assetName}, Qty: ${quantity}, Price: ${price}, Date: ${dateStr}`, result: 'Skipped' });
+        
+        if (!assetName || isNaN(quantity) || quantity === 0 || isNaN(totalValue) || !date || isNaN(date.getTime())) {
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid or missing data. Asset: ${assetName}, Qty: ${quantity}, Total Value: ${totalValue}, Date: ${dateStr}`, result: 'Skipped' });
             continue;
         }
-        
+
         if (type !== 'BUY' && type !== 'SELL') {
             assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid transaction type "${type}".`, result: 'Skipped' });
             continue;
         }
-
-        const transaction = { asset: assetName, quantity, price, type: type as 'BUY' | 'SELL', date, assetType: 'Stock' as 'Stock' };
+        
+        const pricePerShare = totalValue / quantity;
+        const transaction = { asset: assetName, quantity, price: pricePerShare, type: type as 'BUY' | 'SELL', date, assetType: 'Stock' as 'Stock' };
         transactions.push(transaction);
-        assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: 'Successfully created transaction object.', result: `Type: ${type}, Qty: ${quantity}, Price: ${price}` });
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: 'Successfully created transaction object.', result: `Type: ${type}, Qty: ${quantity}, Price/Share: ${pricePerShare.toFixed(2)}` });
 
 
         if (!holdings[assetName]) {
@@ -219,28 +220,30 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const holding = holdings[assetName];
 
         if (type === 'BUY') {
-            const cost = quantity * price;
             holding.quantity += quantity;
-            holding.totalCost += cost;
-            assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `BUY ${quantity} @ ${price}`, result: `New Qty: ${holding.quantity.toFixed(4)}, New Cost: ${holding.totalCost.toFixed(2)}` });
+            holding.totalCost += totalValue;
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `BUY ${quantity} for ${totalValue.toFixed(2)}`, result: `New Qty: ${holding.quantity.toFixed(4)}, New Cost: ${holding.totalCost.toFixed(2)}` });
         } else if (type === 'SELL') {
-             assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `SELL ${quantity} @ ${price}`, result: `State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}` });
+             assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `SELL ${quantity} for ${totalValue.toFixed(2)}`, result: `State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}` });
             
             if (holding.quantity > 0) {
                 const avgPriceBeforeSell = holding.totalCost / holding.quantity;
-                assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `Avg Buy Price: ${avgPriceBeforeSell.toFixed(2)}`, result: '' });
+                assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `Avg Buy Price/Share: ${avgPriceBeforeSell.toFixed(2)}`, result: '' });
                 
-                const profitOnThisSale = (price - avgPriceBeforeSell) * quantity;
+                const costOfSharesSold = avgPriceBeforeSell * quantity;
+                const profitOnThisSale = totalValue - costOfSharesSold;
                 realizedProfit += profitOnThisSale;
-                assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `(${price.toFixed(2)} - ${avgPriceBeforeSell.toFixed(2)}) * ${quantity}`, result: `Sale Profit: ${profitOnThisSale.toFixed(2)}, Total Profit: ${realizedProfit.toFixed(2)}` });
+                assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `Sale Value ${totalValue.toFixed(2)} - Cost of Shares ${costOfSharesSold.toFixed(2)}`, result: `Sale Profit: ${profitOnThisSale.toFixed(2)}, Total Profit: ${realizedProfit.toFixed(2)}` });
 
-                const costBasisAdjustment = quantity * avgPriceBeforeSell;
-                holding.totalCost -= costBasisAdjustment;
+                holding.totalCost -= costOfSharesSold;
 
                 // To prevent floating point issues, if quantity is near zero, set cost to zero.
                 if (Math.abs(holding.quantity - quantity) < 0.00001) {
                     holding.totalCost = 0;
                 }
+            } else {
+                 // Assumes short selling is not a feature and this is an error or data anomaly.
+                 assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `Attempted to sell ${quantity} shares but no holdings exist.`, result: 'Profit not calculated for this transaction.' });
             }
 
             holding.quantity -= quantity;
@@ -257,7 +260,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
                 currentPrice: averagePrice, assetType: 'Stock' as 'Stock',
             };
             if(logs.assetLogs[assetName]) {
-                 logs.assetLogs[assetName].logs.push({ step: 'Final', action: 'Final Aggregation', details: 'Calculated final holdings.', result: `Qty: ${finalAsset.quantity}, Avg Price: ${finalAsset.purchasePrice.toFixed(2)}` });
+                 logs.assetLogs[assetName].logs.push({ step: 'Final', action: 'Final Aggregation', details: 'Calculated final holdings.', result: `Qty: ${finalAsset.quantity.toFixed(4)}, Avg Price: ${finalAsset.purchasePrice.toFixed(2)}` });
             }
             return finalAsset;
         });

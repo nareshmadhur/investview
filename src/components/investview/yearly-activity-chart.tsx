@@ -28,7 +28,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export default function YearlyActivityChart({ transactions }: { transactions: Transaction[] }) {
+export default function YearlyActivityChart({ transactions, currency }: { transactions: Transaction[], currency: 'USD' | 'INR' }) {
   const data = useMemo(() => {
     const yearlyData: Record<string, { year: string; buy: number; sell: number }> = {};
 
@@ -62,6 +62,15 @@ export default function YearlyActivityChart({ transactions }: { transactions: Tr
     )
   }
 
+  const formatCurrencyValue = (value: number) => {
+    const symbol = currency === 'INR' ? '₹' : '$';
+    if (value > 10000000) return `${symbol}${(value / 10000000).toFixed(2)}Cr`;
+    if (value > 100000) return `${symbol}${(value / 100000).toFixed(2)}L`;
+    if (value > 1000) return `${symbol}${(value / 1000).toFixed(1)}k`;
+    return `${symbol}${value}`;
+  }
+
+
   return (
     <Card>
       <CardHeader>
@@ -78,7 +87,7 @@ export default function YearlyActivityChart({ transactions }: { transactions: Tr
                     axisLine={false}
                     tickMargin={8}
                     fontSize={12}
-                    tickFormatter={(value) => `$${Number(value) / 1000}k`}
+                    tickFormatter={formatCurrencyValue}
                 />
                 <ChartTooltip
                     cursor={false}

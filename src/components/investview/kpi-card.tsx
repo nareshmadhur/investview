@@ -7,18 +7,25 @@ type KpiCardProps = {
   value: number;
   format?: 'currency' | 'number';
   icon?: LucideIcon;
+  currency?: 'USD' | 'INR';
+  fractionDigits?: number;
 };
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits: number) => {
+  return new Intl.NumberFormat('en-US', { 
+    style: 'currency', 
+    currency,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
 };
 
 const formatNumber = (value: number) => {
     return new Intl.NumberFormat('en-US').format(value);
 }
 
-export default function KpiCard({ title, value, format = 'number', icon: Icon }: KpiCardProps) {
-  const displayValue = format === 'currency' ? formatCurrency(value) : formatNumber(value);
+export default function KpiCard({ title, value, format = 'number', icon: Icon, currency = 'USD', fractionDigits = 2 }: KpiCardProps) {
+  const displayValue = format === 'currency' ? formatCurrency(value, currency, fractionDigits) : formatNumber(value);
 
   return (
     <Card>

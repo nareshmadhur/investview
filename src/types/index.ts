@@ -19,6 +19,7 @@ export type Portfolio = {
   assets: Asset[];
   transactions: Transaction[];
   totalCost: number; // Net invested value of current holdings
+  currency: 'USD' | 'INR';
 };
 
 export type GrowwSchemaMapping = {

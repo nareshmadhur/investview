@@ -10,11 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import type { Asset } from '@/types';
 import { Badge } from "@/components/ui/badge";
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const formatCurrency = (value: number, currency: 'USD' | 'INR') => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 };
 
-export default function PerformanceTable({ assets }: { assets: Asset[] }) {
+export default function PerformanceTable({ assets, currency }: { assets: Asset[], currency: 'USD' | 'INR' }) {
   const assetsWithCost = assets.map(asset => {
     const cost = asset.quantity * asset.purchasePrice;
     return { ...asset, cost };
@@ -54,7 +54,7 @@ export default function PerformanceTable({ assets }: { assets: Asset[] }) {
                     </TableCell>
                     <TableCell>{asset.quantity}</TableCell>
                     <TableCell className="text-right font-medium">
-                        {formatCurrency(asset.cost)}
+                        {formatCurrency(asset.cost, currency)}
                     </TableCell>
                 </TableRow>
                 ))}

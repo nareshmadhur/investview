@@ -40,9 +40,14 @@ export default function Home() {
         if (!parsedData.transactions) {
           parsedData.transactions = [];
         }
+        
+        if (!parsedData.currency) {
+            parsedData.currency = 'USD';
+        }
 
         setPortfolio(parsedData);
         setFileName("loaded_from_cache.csv");
+        setCsvTemplate(parsedData.currency === 'INR' ? 'groww' : 'default');
       } catch {
         localStorage.removeItem('portfolioData');
       }
@@ -73,7 +78,8 @@ export default function Home() {
               description: "The file was parsed, but no valid transaction rows were found.",
             });
           }
-          const calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions);
+          const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
+          const calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency);
           setPortfolio(calculatedPortfolio);
           localStorage.setItem('portfolioData', JSON.stringify(calculatedPortfolio));
         } catch (error) {
@@ -95,13 +101,13 @@ export default function Home() {
     event.target.value = '';
   };
   
-  const calculatePortfolioMetrics = (assets: Asset[], transactions: Transaction[]): Portfolio => {
+  const calculatePortfolioMetrics = (assets: Asset[], transactions: Transaction[], currency: 'USD' | 'INR'): Portfolio => {
     let totalCost = 0;
     assets.forEach(asset => {
       totalCost += asset.quantity * asset.purchasePrice;
     });
 
-    return { assets, transactions: transactions || [], totalCost };
+    return { assets, transactions: transactions || [], totalCost, currency };
   };
 
   const generateAISuggestions = async () => {
@@ -111,10 +117,10 @@ export default function Home() {
     setAiSuggestions(null);
 
     const portfolioSummary = portfolio.assets.map(asset => 
-      `Asset: ${asset.asset}, Type: ${asset.assetType}, Invested Value: $${(asset.quantity * asset.purchasePrice).toFixed(2)}`
+      `Asset: ${asset.asset}, Type: ${asset.assetType}, Invested Value: ${portfolio.currency === 'INR' ? '₹' : '$'}${(asset.quantity * asset.purchasePrice).toFixed(2)}`
     ).join('. ');
 
-    const input = { portfolioData: `Total Investment: $${portfolio.totalCost.toFixed(2)}. ${portfolioSummary}` };
+    const input = { portfolioData: `Total Investment: ${portfolio.currency === 'INR' ? '₹' : '$'}${portfolio.totalCost.toFixed(2)}. ${portfolioSummary}` };
 
     try {
       const result = await provideInvestmentSuggestions(input);
@@ -183,8 +189,8 @@ export default function Home() {
                   <SelectValue placeholder="Select a template" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="groww">Groww</SelectItem>
+                  <SelectItem value="default">Default (USD)</SelectItem>
+                  <SelectItem value="groww">Groww (INR)</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -225,14 +231,21 @@ export default function Home() {
           {portfolio && (
             <>
               <div className="grid gap-4 md:grid-cols-3">
-                <KpiCard title="Net Cost of Holdings" value={portfolio.totalCost} format="currency" icon={TrendingUp} />
+                <KpiCard 
+                  title="Net Cost of Holdings" 
+                  value={portfolio.totalCost} 
+                  format="currency" 
+                  icon={TrendingUp} 
+                  currency={portfolio.currency}
+                  fractionDigits={0} 
+                />
                 <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
                 <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />
               </div>
 
               <div className="grid gap-8 lg:grid-cols-2">
-                 <PerformanceTable assets={portfolio.assets} />
-                 <YearlyActivityChart transactions={portfolio.transactions} />
+                 <PerformanceTable assets={portfolio.assets} currency={portfolio.currency} />
+                 <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
               </div>
 
               <Card>

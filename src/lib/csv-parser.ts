@@ -94,6 +94,33 @@ const parseDefault = (lines: string[]): ParseResult => {
   return { assets, transactions, logs };
 }
 
+function parseGrowwDate(dateStr: string): Date | null {
+    // Expected format: DD-MM-YYYY HH:mm AM/PM
+    const parts = dateStr.match(/(\d{2})-(\d{2})-(\d{4})\s(\d{1,2}):(\d{2})\s(AM|PM)/);
+    if (!parts) return null;
+
+    const day = parseInt(parts[1], 10);
+    const month = parseInt(parts[2], 10) - 1; // Month is 0-indexed in JS
+    const year = parseInt(parts[3], 10);
+    let hour = parseInt(parts[4], 10);
+    const minute = parseInt(parts[5], 10);
+    const ampm = parts[6];
+
+    if (ampm === 'PM' && hour < 12) {
+        hour += 12;
+    }
+    if (ampm === 'AM' && hour === 12) { // Midnight case
+        hour = 0;
+    }
+
+    const date = new Date(year, month, day, hour, minute);
+    // Check if the constructed date is valid, especially for cross-timezone issues
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+        return null;
+    }
+    return date;
+}
+
 // The Groww parser returns both aggregated assets and raw transactions
 const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseResult => {
     const logs: string[] = [];
@@ -160,8 +187,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         }
 
         const status = data[statusIndex].toUpperCase();
-        if (status !== 'COMPLETED' && status !== 'EXECUTED') {
-            logs.push(`Skipping row ${i + 1}: Order status is "${data[statusIndex]}", not "COMPLETED" or "EXECUTED".`);
+        if (status !== 'EXECUTED') {
+            logs.push(`Skipping row ${i + 1}: Order status is "${data[statusIndex]}", not "EXECUTED".`);
             continue;
         }
 
@@ -170,9 +197,9 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const price = parseFloat(data[priceIndex]);
         const type = data[typeIndex].toUpperCase();
         const dateStr = data[dateIndex];
-        const date = new Date(dateStr);
+        const date = parseGrowwDate(dateStr);
 
-        if (!assetName || isNaN(quantity) || isNaN(price) || isNaN(date.getTime())) {
+        if (!assetName || isNaN(quantity) || isNaN(price) || !date || isNaN(date.getTime())) {
             logs.push(`Warning: Skipping row ${i + 1} due to invalid or missing data. Asset: ${assetName}, Qty: ${quantity}, Price: ${price}, Date: ${dateStr}`);
             continue;
         }

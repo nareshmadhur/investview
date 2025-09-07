@@ -160,8 +160,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         }
 
         const status = data[statusIndex].toUpperCase();
-        if (status !== 'COMPLETED') {
-            logs.push(`Skipping row ${i + 1}: Order status is "${data[statusIndex]}", not "COMPLETED".`);
+        if (status !== 'COMPLETED' && status !== 'EXECUTED') {
+            logs.push(`Skipping row ${i + 1}: Order status is "${data[statusIndex]}", not "COMPLETED" or "EXECUTED".`);
             continue;
         }
 

@@ -172,13 +172,13 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     }
 
     const assets: Asset[] = Object.entries(holdings)
-        .filter(([, holding]) => holding.quantity > 0.0001)
+        .filter(([, holding]) => holding.quantity > 0.0001) // Use a small threshold for floating point
         .map(([assetName, holding]) => {
             const averagePrice = holding.quantity > 0 ? holding.totalCost / holding.quantity : 0;
             return {
                 asset: assetName,
                 quantity: holding.quantity,
-                purchasePrice: averagePrice < 0 ? 0 : averagePrice,
+                purchasePrice: averagePrice < 0 ? 0 : averagePrice, // Ensure purchase price isn't negative
                 currentPrice: averagePrice < 0 ? 0 : averagePrice, // Placeholder
                 assetType: 'Stock',
             };

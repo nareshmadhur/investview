@@ -120,9 +120,9 @@ function parseGrowwDate(dateStr: string): Date | null {
         hour = 0;
     }
 
-    const date = new Date(year, month, day, hour, minute);
+    const date = new Date(Date.UTC(year, month, day, hour, minute));
     // Check if the constructed date is valid, especially for cross-timezone issues
-    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month || date.getUTCDate() !== day) {
         return null;
     }
     return date;
@@ -239,19 +239,19 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
             const holding = holdings[assetName];
             logs.aggregation.push(`Processing SELL for ${assetName}. State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}.`);
             
-            let costReduction = 0;
+            let costBasisAdjustment = 0;
             if (holding.quantity > 0) {
                 const avgPriceBeforeSell = holding.totalCost / holding.quantity;
-                 logs.aggregation.push(`Calculated average cost for reduction: ${avgPriceBeforeSell.toFixed(2)}`);
-                costReduction = quantity * (isNaN(avgPriceBeforeSell) ? price : avgPriceBeforeSell);
+                 logs.aggregation.push(`To calculate the cost of the shares being sold, using the average purchase price: ${avgPriceBeforeSell.toFixed(2)}.`);
+                costBasisAdjustment = quantity * avgPriceBeforeSell;
             } else {
-                 logs.aggregation.push(`No existing quantity. Reducing cost based on current sell price: ${price}`);
-                 costReduction = quantity * price; // Cost can be negative if shorting
+                 logs.aggregation.push(`No existing quantity. Cost basis adjustment is based on current sell price (short selling): ${price}`);
+                 costBasisAdjustment = quantity * price; 
             }
 
             holding.quantity -= quantity;
-            holding.totalCost -= costReduction;
-            logs.aggregation.push(`Reduced cost by ${costReduction.toFixed(2)}. State after: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}.`);
+            holding.totalCost -= costBasisAdjustment;
+            logs.aggregation.push(`Adjusted Total Cost by ${costBasisAdjustment.toFixed(2)}. State after: Qty=${holding.quantity.toFixed(4)}, New Total Cost=${holding.totalCost.toFixed(2)}.`);
         }
     }
 

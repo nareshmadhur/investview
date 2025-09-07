@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Asset, GrowwSchemaMapping, ParsingLogs, AssetLog } from '@/types';
+import type { Asset, GrowwSchemaMapping, ParsingLogs, StructuredLog } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +57,36 @@ const LogTable = ({ logs, title }: { logs: string[], title: string }) => (
   </div>
 );
 
+const StructuredLogTable = ({ logs }: { logs: StructuredLog[] }) => {
+    if (!logs || logs.length === 0) {
+        return <p className="text-sm text-muted-foreground">No detailed logs available for this asset.</p>;
+    }
+    return (
+        <ScrollArea className="h-96 w-full rounded-md border">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-[100px]">Step</TableHead>
+                        <TableHead className="w-[120px]">Action</TableHead>
+                        <TableHead>Details</TableHead>
+                        <TableHead>Result</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {logs.map((log, index) => (
+                        <TableRow key={index}>
+                            <TableCell className="font-mono text-xs">{log.step}</TableCell>
+                            <TableCell className="font-medium">{log.action}</TableCell>
+                            <TableCell className="text-xs">{log.details}</TableCell>
+                            <TableCell className="text-xs font-mono">{log.result}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </ScrollArea>
+    );
+};
+
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
@@ -86,11 +116,18 @@ export default function AdminPage() {
             throw new Error(result.error);
           }
           
-          if (result.assets.length === 0) {
+          if (result.assets.length === 0 && result.transactions.length > 0) {
             toast({
               variant: "default",
-              title: "Parsing successful, but no holdings",
+              title: "Parsing successful, but no net holdings",
               description: "No net assets were found after processing all transactions. This might be expected if all holdings were sold.",
+            });
+             setAssets([]);
+          } else if (result.assets.length === 0 && result.transactions.length === 0) {
+            toast({
+              variant: "default",
+              title: "Parsing successful, but no transaction data found",
+              description: "The file was parsed, but no valid transaction rows were found.",
             });
             setAssets([]);
           } else {
@@ -119,7 +156,7 @@ export default function AdminPage() {
   
   const hasAssets = useMemo(() => assets !== null, [assets]);
   const hasLogs = useMemo(() => {
-    return parsingLogs && (parsingLogs.setup.length > 0 || Object.keys(parsingLogs.assetLogs).length > 0 || parsingLogs.summary.length > 0)
+    return parsingLogs && (parsingLogs.setup.length > 0 || parsingLogs.summary.length > 0)
   }, [parsingLogs]);
 
   return (
@@ -245,9 +282,8 @@ export default function AdminPage() {
                                   <DialogHeader>
                                     <DialogTitle>Parsing Logs for: {asset.asset}</DialogTitle>
                                   </DialogHeader>
-                                  <div className="grid gap-6 py-4">
-                                    <LogTable title="Transaction Logs" logs={parsingLogs.assetLogs[asset.asset]?.transactions || []} />
-                                    <LogTable title="Aggregation & Profit Logs" logs={parsingLogs.assetLogs[asset.asset]?.aggregation || []} />
+                                  <div className="py-4">
+                                    <StructuredLogTable logs={parsingLogs.assetLogs[asset.asset]?.logs || []} />
                                   </div>
                                 </DialogContent>
                               </Dialog>
@@ -278,5 +314,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    

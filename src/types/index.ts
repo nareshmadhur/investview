@@ -33,9 +33,15 @@ export type GrowwSchemaMapping = {
   status: string;
 };
 
+export type StructuredLog = {
+    step: string;
+    action: string;
+    details: string;
+    result: string;
+}
+
 export type AssetLog = {
-  transactions: string[];
-  aggregation: string[];
+  logs: StructuredLog[];
 }
 
 export type ParsingLogs = {

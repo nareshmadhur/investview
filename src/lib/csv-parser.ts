@@ -1,5 +1,5 @@
 
-import { type Asset, type Transaction, type GrowwSchemaMapping, type ParsingLogs } from '@/types';
+import { type Asset, type Transaction, type GrowwSchemaMapping, type ParsingLogs, type StructuredLog } from '@/types';
 
 export type CsvTemplate = 'default' | 'groww';
 
@@ -17,8 +17,6 @@ const initialLogs = (): ParsingLogs => ({
   summary: [],
 });
 
-
-// The default parser returns both aggregated assets and raw transactions
 const parseDefault = (lines: string[]): ParseResult => {
   const logs: ParsingLogs = initialLogs();
   if (lines.length < 2) {
@@ -54,19 +52,20 @@ const parseDefault = (lines: string[]): ParseResult => {
     const data = line.split(',');
     const assetName = data[assetIndex].trim();
     if (!logs.assetLogs[assetName]) {
-      logs.assetLogs[assetName] = { transactions: [], aggregation: [] };
+      logs.assetLogs[assetName] = { logs: [] };
     }
+    const assetLogs = logs.assetLogs[assetName].logs;
 
-    logs.assetLogs[assetName].transactions.push(`Processing row ${i + 1}: [${data.join(', ')}]`);
+    assetLogs.push({ step: `Row ${i + 1}`, action: 'Read', details: `Raw data: [${data.join(', ')}]`, result: '' });
 
     if (data.length < headers.length) {
-       logs.assetLogs[assetName].transactions.push(`Warning: Skipping malformed row ${i + 1}. Expected at least ${requiredHeaders.length} columns, but got ${data.length}.`);
+       assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Malformed row. Expected ${headers.length}, got ${data.length}`, result: 'Skipped' });
        continue;
     }
 
     const assetType = data[assetTypeIndex].trim();
     if (assetType !== 'Stock' && assetType !== 'Cryptocurrency' && assetType !== 'Commodity') {
-      logs.assetLogs[assetName].transactions.push(`Warning: Skipping row ${i + 1} with invalid AssetType: ${assetType}`);
+      assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid AssetType: ${assetType}`, result: 'Skipped' });
       continue;
     }
 
@@ -77,7 +76,7 @@ const parseDefault = (lines: string[]): ParseResult => {
 
 
     if (isNaN(quantity) || isNaN(purchasePrice) || isNaN(currentPrice)) {
-      logs.assetLogs[assetName].transactions.push(`Warning: Skipping row ${i + 1} due to invalid number format.`);
+      assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid number format in row.`, result: 'Skipped' });
       continue;
     }
 
@@ -98,7 +97,7 @@ const parseDefault = (lines: string[]): ParseResult => {
         assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
     };
     transactions.push(transaction);
-    logs.assetLogs[assetName].transactions.push(`Successfully parsed transaction for row ${i + 1}: ${JSON.stringify(transaction)}`);
+    assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: `Parsed transaction.`, result: `Type: ${transaction.type}, Qty: ${transaction.quantity}` });
   }
   logs.summary.push(`Finished processing. Total assets found: ${assets.length}. Total transactions: ${transactions.length}.`);
   return { assets, transactions, logs };
@@ -176,20 +175,20 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const assetName = data[assetIndex];
 
         if (!logs.assetLogs[assetName]) {
-          logs.assetLogs[assetName] = { transactions: [], aggregation: [] };
+          logs.assetLogs[assetName] = { logs: [] };
         }
-        const assetLogs = logs.assetLogs[assetName];
+        const assetLogs = logs.assetLogs[assetName].logs;
 
-        assetLogs.transactions.push(`Processing row ${i + 1}: [${data.join(', ')}]`);
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Read', details: `Raw data: [${data.join(', ')}]`, result: '' });
 
         if (data.length < headers.length) {
-            assetLogs.transactions.push(`Warning: Skipping malformed Groww row ${i + 1}.`);
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Malformed row.`, result: 'Skipped' });
             continue;
         }
 
         const status = data[statusIndex].toUpperCase();
         if (status !== 'EXECUTED') {
-            assetLogs.transactions.push(`Skipping row ${i + 1}: Order status is "${data[statusIndex]}", not "EXECUTED".`);
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Order status is "${data[statusIndex]}", not "EXECUTED".`, result: 'Skipped' });
             continue;
         }
 
@@ -200,18 +199,19 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const date = parseGrowwDate(dateStr);
 
         if (!assetName || isNaN(quantity) || isNaN(price) || !date || isNaN(date.getTime())) {
-            assetLogs.transactions.push(`Warning: Skipping row ${i + 1} due to invalid or missing data. Asset: ${assetName}, Qty: ${quantity}, Price: ${price}, Date: ${dateStr}`);
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid or missing data. Asset: ${assetName}, Qty: ${quantity}, Price: ${price}, Date: ${dateStr}`, result: 'Skipped' });
             continue;
         }
         
         if (type !== 'BUY' && type !== 'SELL') {
-            assetLogs.transactions.push(`Skipping row ${i + 1}: Invalid transaction type "${type}".`);
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid transaction type "${type}".`, result: 'Skipped' });
             continue;
         }
 
         const transaction = { asset: assetName, quantity, price, type: type as 'BUY' | 'SELL', date, assetType: 'Stock' as 'Stock' };
         transactions.push(transaction);
-        assetLogs.transactions.push(`Successfully parsed transaction for row ${i + 1}: ${JSON.stringify(transaction)}`);
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: 'Successfully created transaction object.', result: `Type: ${type}, Qty: ${quantity}, Price: ${price}` });
+
 
         if (!holdings[assetName]) {
             holdings[assetName] = { quantity: 0, totalCost: 0 };
@@ -219,28 +219,32 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const holding = holdings[assetName];
 
         if (type === 'BUY') {
+            const cost = quantity * price;
             holding.quantity += quantity;
-            holding.totalCost += quantity * price;
-            assetLogs.aggregation.push(`BUY ${quantity} @ ${price}. New Qty: ${holding.quantity.toFixed(4)}, New Total Cost: ${holding.totalCost.toFixed(2)}`);
+            holding.totalCost += cost;
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `BUY ${quantity} @ ${price}`, result: `New Qty: ${holding.quantity.toFixed(4)}, New Cost: ${holding.totalCost.toFixed(2)}` });
         } else if (type === 'SELL') {
-            assetLogs.aggregation.push(`Processing SELL for ${quantity} @ ${price}. State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}.`);
+             assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `SELL ${quantity} @ ${price}`, result: `State before: Qty=${holding.quantity.toFixed(4)}, Cost=${holding.totalCost.toFixed(2)}` });
             
             if (holding.quantity > 0) {
                 const avgPriceBeforeSell = holding.totalCost / holding.quantity;
-                assetLogs.aggregation.push(`To calculate profit and adjust cost basis, using the average purchase price: ${avgPriceBeforeSell.toFixed(2)}.`);
+                assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `Avg Buy Price: ${avgPriceBeforeSell.toFixed(2)}`, result: '' });
                 
                 const profitOnThisSale = (price - avgPriceBeforeSell) * quantity;
                 realizedProfit += profitOnThisSale;
-                assetLogs.aggregation.push(`Profit from this sale: (${price.toFixed(2)} - ${avgPriceBeforeSell.toFixed(2)}) * ${quantity} = ${profitOnThisSale.toFixed(2)}. New Total Realized Profit: ${realizedProfit.toFixed(2)}`);
+                assetLogs.push({ step: `Row ${i + 1}`, action: 'Profit Calc', details: `(${price.toFixed(2)} - ${avgPriceBeforeSell.toFixed(2)}) * ${quantity}`, result: `Sale Profit: ${profitOnThisSale.toFixed(2)}, Total Profit: ${realizedProfit.toFixed(2)}` });
 
                 const costBasisAdjustment = quantity * avgPriceBeforeSell;
                 holding.totalCost -= costBasisAdjustment;
 
-                if (Math.abs(holding.quantity - quantity) < 0.00001) holding.totalCost = 0;
+                // To prevent floating point issues, if quantity is near zero, set cost to zero.
+                if (Math.abs(holding.quantity - quantity) < 0.00001) {
+                    holding.totalCost = 0;
+                }
             }
 
             holding.quantity -= quantity;
-            assetLogs.aggregation.push(`State after: Qty=${holding.quantity.toFixed(4)}, New Total Cost=${holding.totalCost.toFixed(2)}.`);
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `Cost basis adjusted.`, result: `New Qty: ${holding.quantity.toFixed(4)}, New Cost: ${holding.totalCost.toFixed(2)}` });
         }
     }
 
@@ -253,7 +257,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
                 currentPrice: averagePrice, assetType: 'Stock' as 'Stock',
             };
             if(logs.assetLogs[assetName]) {
-                logs.assetLogs[assetName].aggregation.push(`Final aggregated asset: ${JSON.stringify(finalAsset)}`);
+                 logs.assetLogs[assetName].logs.push({ step: 'Final', action: 'Final Aggregation', details: 'Calculated final holdings.', result: `Qty: ${finalAsset.quantity}, Avg Price: ${finalAsset.purchasePrice.toFixed(2)}` });
             }
             return finalAsset;
         });

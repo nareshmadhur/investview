@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getEodhdLastDayData, type EodhdRecord, type EodhdResult } from './actions';
+import { getEodhdSingleStockPrice, type EodhdRecord } from './actions';
 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, TableIcon, Database, Download } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, TableIcon, Database, Download, Search } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) {
@@ -35,7 +35,7 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
     const totalSellQuantity = sells.reduce((acc, t) => acc + t.quantity, 0);
     const totalSellValue = sells.reduce((acc, t) => acc + t.quantity * t.price, 0);
     
-    const avgBuyPrice = totalBuyQuantity > 0 ? totalValue / totalBuyQuantity : 0;
+    const avgBuyPrice = totalBuyQuantity > 0 ? totalBuyValue / totalBuyQuantity : 0;
     const realizedProfit = totalSellValue - (avgBuyPrice * totalSellQuantity);
     
     return (
@@ -121,93 +121,82 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
     );
 };
 
-function EodhdDataDownloader() {
+function StockPriceFetcher() {
+    const [symbol, setSymbol] = useState('RELIANCE.NSE');
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<EodhdResult | null>(null);
-    const [eodData, setEodData] = useState<EodhdRecord[] | null>(null);
+    const [result, setResult] = useState<{ data?: EodhdRecord, error?: string } | null>(null);
     const { toast } = useToast();
 
-    const handleFetchEodData = async (exchange: 'NSE' | 'BSE') => {
+    const handleFetchPrice = async () => {
+        if (!symbol) {
+            toast({ variant: 'destructive', title: 'Symbol Required', description: 'Please enter a stock symbol.' });
+            return;
+        }
         setIsLoading(true);
         setResult(null);
-        setEodData(null);
         try {
-            const res = await getEodhdLastDayData(exchange);
+            const res = await getEodhdSingleStockPrice(symbol);
             setResult(res);
 
             if (res.error) {
-                toast({ variant: 'destructive', title: 'EODHD API Error', description: res.error, duration: 5000 });
+                toast({ variant: 'destructive', title: 'API Error', description: res.error, duration: 5000 });
             }
-            if (res.data) {
-                toast({ variant: 'default', title: 'EODHD Data Loaded', description: `Successfully fetched ${res.data.length} records for ${exchange}.` });
-                setEodData(res.data);
+             if (res.data) {
+                toast({ variant: 'default', title: 'Price Loaded', description: `Successfully fetched price for ${symbol}.` });
             }
-
         } catch (e) {
-            const error = e instanceof Error ? e.message : "An unknown error occurred.";
+            const error = e instanceof Error ? e.message : 'An unknown error occurred.';
             setResult({ error });
             toast({ variant: 'destructive', title: 'Request Failed', description: error });
         } finally {
             setIsLoading(false);
         }
     };
-    
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Database className="w-6 h-6" />
-                    EODHD Market Data
+                    EODHD Single Stock Price
                 </CardTitle>
                 <CardDescription>
-                   Fetch the latest bulk end-of-day data from EODHD for an entire exchange. The result is cached for 1 hour.
+                    Test the EODHD API by fetching the last traded price for a single stock. Use the format SYMBOL.EXCHANGE (e.g., RELIANCE.NSE or AAPL.US).
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex items-center gap-4">
-                    <Button onClick={() => handleFetchEodData('NSE')} disabled={isLoading}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Fetch Latest NSE Data
-                    </Button>
-                     <Button onClick={() => handleFetchEodData('BSE')} disabled={isLoading} variant="secondary">
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Fetch Latest BSE Data
+                <div className="flex w-full max-w-sm items-center space-x-2">
+                    <Input
+                        type="text"
+                        placeholder="e.g., RELIANCE.NSE"
+                        value={symbol}
+                        onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === 'Enter' && handleFetchPrice()}
+                    />
+                    <Button onClick={handleFetchPrice} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                        Fetch Price
                     </Button>
                 </div>
-
-                {eodData && (
+                
+                {result && result.data && (
                     <div className="mt-6">
-                        <h4 className="font-semibold mb-2">Parsed EOD Data (First 20 records)</h4>
-                        <ScrollArea className="h-96 w-full rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Code</TableHead>
-                                        <TableHead className="text-right">Close</TableHead>
-                                        <TableHead className="text-right">Prev. Close</TableHead>
-                                        <TableHead className="text-right">Change (%)</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {eodData.slice(0, 20).map((record) => (
-                                        <TableRow key={record.code}>
-                                            <TableCell className="font-medium">{record.code}</TableCell>
-                                            <TableCell className="text-right font-mono">{record.close.toFixed(2)}</TableCell>
-                                            <TableCell className="text-right font-mono">{record.previousClose.toFixed(2)}</TableCell>
-                                            <TableCell className="text-right font-mono">{record.change_p.toFixed(2)}%</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </ScrollArea>
+                        <h4 className="font-semibold mb-2">Result for {result.data.code}</h4>
+                        <div className="rounded-md border p-4 space-y-2 text-sm">
+                            <p><strong>Close:</strong> {result.data.close}</p>
+                            <p><strong>Change:</strong> {result.data.change.toFixed(2)} ({result.data.change_p.toFixed(2)}%)</p>
+                            <p><strong>Previous Close:</strong> {result.data.previousClose}</p>
+                            <p><strong>Volume:</strong> {result.data.volume.toLocaleString()}</p>
+                        </div>
                     </div>
                 )}
-                 {result && result.error && (
-                     <div className="mt-4 text-destructive p-4 bg-destructive/10 rounded-md border border-destructive/20">
-                         <p className="font-semibold">An error occurred:</p>
-                         <p className="text-sm">{result.error}</p>
+                
+                {result && result.error && (
+                    <div className="mt-4 text-destructive p-4 bg-destructive/10 rounded-md border border-destructive/20">
+                        <p className="font-semibold">An error occurred:</p>
+                        <p className="text-sm">{result.error}</p>
                     </div>
-                 )}
+                )}
             </CardContent>
         </Card>
     );
@@ -297,7 +286,7 @@ export default function AdminPage() {
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto grid gap-8">
           
-          <EodhdDataDownloader />
+          <StockPriceFetcher />
 
           <Card>
             <CardHeader>
@@ -391,8 +380,7 @@ export default function AdminPage() {
                     <TableBody>
                       {assets.map((asset, index) => (
                         <TableRow key={`${asset.asset}-${index}`}>
-                          <TableCell className="font-medium">{asset.asset}</TableCell>
-                          <TableCell>{asset.quantity.toFixed(4)}</TableCell>
+                          <TableCell className="font-medium">{asset.asset}</TableCell>                          <TableCell>{asset.quantity.toFixed(4)}</TableCell>
                           <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
                           <TableCell>{asset.assetType}</TableCell>
                           <TableCell className="text-right">

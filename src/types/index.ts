@@ -52,7 +52,7 @@ export type ParsingLogs = {
   summary: string[];
 }
 
-// Zod schema for the EODHD bulk last day record
+// Zod schema for the EODHD record (works for bulk and single stock 'real-time' API)
 export const eodhdRecordSchema = z.object({
   code: z.string(),
   timestamp: z.number(),

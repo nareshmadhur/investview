@@ -2,8 +2,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Asset, GrowwSchemaMapping, ParsingLogs, StructuredLog, Transaction } from '@/types';
+import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
+import { getStockPrice, type StockPriceResponse } from './actions';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon, ExternalLink } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-const defaultGrowwSchema: GrowwSchemaMapping = {
+const defaultGrowwSchema = {
   asset: 'Stock name',
   type: 'Type',
   quantity: 'Quantity',
@@ -25,38 +26,6 @@ const defaultGrowwSchema: GrowwSchemaMapping = {
   date: 'Execution date and time',
   status: 'Order status',
 };
-
-const initialLogs: ParsingLogs = {
-  setup: [],
-  assetLogs: {},
-  summary: [],
-};
-
-const LogTable = ({ logs, title }: { logs: string[], title: string }) => (
-  <div>
-    <h3 className="font-semibold mb-2">{title}</h3>
-    <ScrollArea className="h-64 w-full rounded-md border">
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>Log Entry</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {logs.length > 0 ? logs.map((log, index) => (
-                     <TableRow key={index}>
-                        <TableCell className="text-xs whitespace-pre-wrap font-mono">{log}</TableCell>
-                    </TableRow>
-                )) : (
-                     <TableRow>
-                        <TableCell className="text-xs text-muted-foreground">No logs for this section.</TableCell>
-                    </TableRow>
-                )}
-            </TableBody>
-        </Table>
-    </ScrollArea>
-  </div>
-);
 
 const AssetLogsView = ({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) => {
     if (!transactions || transactions.length === 0) {
@@ -160,14 +129,104 @@ const AssetLogsView = ({ asset, transactions, currency }: { asset: Asset, transa
     );
 };
 
+function StockPriceFetcher() {
+    const [symbol, setSymbol] = useState('RELIANCE.BSE');
+    const [isLoading, setIsLoading] = useState(false);
+    const [result, setResult] = useState<StockPriceResponse | null>(null);
+    const { toast } = useToast();
+
+    const handleFetch = async () => {
+        if (!symbol) {
+            toast({
+                variant: 'destructive',
+                title: 'Symbol is required',
+                description: 'Please enter a stock symbol to fetch the price.',
+            });
+            return;
+        }
+        setIsLoading(true);
+        setResult(null);
+        try {
+            const res = await getStockPrice(symbol);
+            setResult(res);
+            if (res.error) {
+                toast({
+                    variant: 'destructive',
+                    title: 'API Error',
+                    description: res.error,
+                });
+            }
+        } catch (e) {
+            const error = e instanceof Error ? e.message : "An unknown error occurred.";
+            setResult({ error });
+            toast({
+                variant: 'destructive',
+                title: 'Request Failed',
+                description: error,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Search className="w-6 h-6" />
+                    Alpha Vantage Price Fetcher
+                </CardTitle>
+                <CardDescription>
+                    Enter a stock symbol to fetch the latest price. E.g., `RELIANCE.BSE` for BSE or `IBM` for US stocks. Make sure your API key is set in the <code>.env</code> file.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="grid gap-1.5 flex-grow w-full">
+                        <Label htmlFor="symbol-input">Stock Symbol</Label>
+                        <Input
+                            id="symbol-input"
+                            value={symbol}
+                            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                            placeholder="e.g. RELIANCE.BSE"
+                        />
+                    </div>
+                    <Button onClick={handleFetch} disabled={isLoading} className="w-full sm:w-auto mt-4 sm:mt-0 self-end">
+                        {isLoading ? <Loader2 className="animate-spin" /> : <ExternalLink />}
+                        Fetch Price
+                    </Button>
+                </div>
+                {result && (
+                    <div className="mt-6 grid gap-4">
+                        {result.price !== undefined && (
+                            <div className="p-4 rounded-md bg-accent border">
+                                <h4 className="font-semibold text-accent-foreground">Last Traded Price</h4>
+                                <p className="text-2xl font-bold text-primary">{result.price.toFixed(2)}</p>
+                            </div>
+                        )}
+                        {result.rawData && (
+                            <div>
+                               <h4 className="font-semibold mb-2">Raw API Response</h4>
+                               <ScrollArea className="h-64 w-full rounded-md border bg-muted">
+                                  <pre className="p-4 text-xs font-mono">{JSON.stringify(result.rawData, null, 2)}</pre>
+                                </ScrollArea>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
-  const [growwSchema, setGrowwSchema] = useState<GrowwSchemaMapping>(defaultGrowwSchema);
-  const [parsingLogs, setParsingLogs] = useState<ParsingLogs>(initialLogs);
+  const [growwSchema, setGrowwSchema] = useState(defaultGrowwSchema);
+  const [parsingLogs, setParsingLogs] = useState<any>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const { toast } = useToast();
 
@@ -177,7 +236,7 @@ export default function AdminPage() {
       setIsParsing(true);
       setFileName(file.name);
       setAssets(null);
-      setParsingLogs(initialLogs);
+      setParsingLogs(null);
       const selectedCurrency = csvTemplate === 'groww' ? 'INR' : 'USD';
       setCurrency(selectedCurrency);
 
@@ -187,7 +246,7 @@ export default function AdminPage() {
           const text = e.target?.result as string;
           const result: ParseResult = parseCSV(text, csvTemplate, csvTemplate === 'groww' ? growwSchema : undefined);
           
-          setParsingLogs(result.logs || initialLogs);
+          setParsingLogs(result.logs || null);
 
           if (result.error) {
             throw new Error(result.error);
@@ -227,14 +286,11 @@ export default function AdminPage() {
     event.target.value = '';
   };
 
-  const handleSchemaChange = (field: keyof GrowwSchemaMapping, value: string) => {
+  const handleSchemaChange = (field: keyof typeof defaultGrowwSchema, value: string) => {
     setGrowwSchema(prev => ({ ...prev, [field]: value }));
   };
   
   const hasAssets = useMemo(() => assets !== null, [assets]);
-  const hasLogs = useMemo(() => {
-    return parsingLogs && (parsingLogs.setup.length > 0 || parsingLogs.summary.length > 0)
-  }, [parsingLogs]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
@@ -244,6 +300,9 @@ export default function AdminPage() {
 
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto grid gap-8">
+
+          <StockPriceFetcher />
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -251,7 +310,7 @@ export default function AdminPage() {
                 Aggregated Data Viewer
               </CardTitle>
               <CardDescription>
-                Upload a CSV to see the aggregated, parsed data. Click on an asset in the table below to see its detailed parsing logs.
+                Upload a CSV to see the aggregated, parsed data. Click on an asset in the table below to see its detailed transaction history.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-4">
@@ -294,7 +353,7 @@ export default function AdminPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {(Object.keys(defaultGrowwSchema) as Array<keyof GrowwSchemaMapping>).map(key => (
+                                {(Object.keys(defaultGrowwSchema) as Array<keyof typeof defaultGrowwSchema>).map(key => (
                                 <div key={key} className="grid gap-1.5">
                                     <Label htmlFor={`schema-${key}`} className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
                                     <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} placeholder={`e.g. ${defaultGrowwSchema[key]}`} />
@@ -314,30 +373,12 @@ export default function AdminPage() {
             </div>
           )}
 
-          {hasLogs && (
-             <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="w-6 h-6" />
-                    Global Parsing Logs
-                  </CardTitle>
-                  <CardDescription>
-                    High-level logs about the parsing setup and overall summary. For asset-specific logs, click an asset in the table below.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                    <LogTable title="Setup & Initialization" logs={parsingLogs.setup} />
-                    <LogTable title="Summary" logs={parsingLogs.summary} />
-                </CardContent>
-              </Card>
-          )}
-
           {hasAssets && assets.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Parsed Asset Data</CardTitle>
                 <CardDescription>
-                  This is the final aggregated data. Click a row to see the detailed transaction and aggregation logs for that specific asset.
+                  This is the final aggregated data. Click a row to see the detailed transaction summary for that specific asset.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -361,7 +402,7 @@ export default function AdminPage() {
                           <TableCell className="text-right">
                              <Dialog>
                                 <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm"><TableIcon className="mr-2 h-4 w-4" /> View Logs</Button>
+                                  <Button variant="outline" size="sm"><TableIcon className="mr-2 h-4 w-4" /> View Transactions</Button>
                                 </DialogTrigger>
                                 <DialogContent className="max-w-6xl">
                                   <DialogHeader>
@@ -370,7 +411,7 @@ export default function AdminPage() {
                                   <div className="py-4">
                                     <AssetLogsView 
                                       asset={asset}
-                                      transactions={parsingLogs.assetLogs[asset.asset]?.transactions || []} 
+                                      transactions={parsingLogs?.assetLogs?.[asset.asset]?.transactions || []} 
                                       currency={currency}
                                     />
                                   </div>

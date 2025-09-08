@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getStockPrice, type StockPriceResponse } from './actions';
+import { getStockPrice, scrapeYahooFinancePrice, type ApiResponse } from './actions';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon, ExternalLink } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon, ExternalLink, Bot, Code } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const defaultGrowwSchema = {
   asset: 'Stock name',
@@ -132,41 +133,41 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
 function StockPriceFetcher() {
     const [symbol, setSymbol] = useState('RELIANCE.BSE');
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<StockPriceResponse | null>(null);
+    const [result, setResult] = useState<ApiResponse | null>(null);
+    const [apiSource, setApiSource] = useState<'alphavantage' | 'yahoo'>('alphavantage');
     const { toast } = useToast();
 
     const handleFetch = async () => {
         if (!symbol) {
-            toast({
-                variant: 'destructive',
-                title: 'Symbol is required',
-                description: 'Please enter a stock symbol to fetch the price.',
-            });
+            toast({ variant: 'destructive', title: 'Symbol is required' });
             return;
         }
         setIsLoading(true);
         setResult(null);
         try {
-            const res = await getStockPrice(symbol);
+            let res: ApiResponse;
+            if (apiSource === 'alphavantage') {
+                res = await getStockPrice(symbol);
+            } else {
+                res = await scrapeYahooFinancePrice(symbol);
+            }
             setResult(res);
+
             if (res.error) {
-                toast({
-                    variant: 'destructive',
-                    title: 'API Error',
-                    description: res.error,
-                });
+                toast({ variant: 'destructive', title: 'API Error', description: res.error });
             }
         } catch (e) {
             const error = e instanceof Error ? e.message : "An unknown error occurred.";
             setResult({ error });
-            toast({
-                variant: 'destructive',
-                title: 'Request Failed',
-                description: error,
-            });
+            toast({ variant: 'destructive', title: 'Request Failed', description: error });
         } finally {
             setIsLoading(false);
         }
+    };
+    
+    const sourceConfig = {
+      alphavantage: { title: "Alpha Vantage API", icon: Bot, placeholder: "e.g. RELIANCE.BSE, IBM" },
+      yahoo: { title: "Yahoo Finance (Scrape)", icon: Code, placeholder: "e.g. RELIANCE.NS, AAPL" }
     };
 
     return (
@@ -174,13 +175,27 @@ function StockPriceFetcher() {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Search className="w-6 h-6" />
-                    Alpha Vantage Price Fetcher
+                    Live Price Fetcher
                 </CardTitle>
                 <CardDescription>
-                    Enter a stock symbol to fetch the latest price. E.g., `RELIANCE.BSE` for BSE or `IBM` for US stocks. Make sure your API key is set in the <code>.env</code> file.
+                    Select a data source, enter a stock symbol, and fetch the latest traded price. This is a testing utility.
                 </CardDescription>
             </CardHeader>
             <CardContent>
+                 <div className="mb-6">
+                    <Label className="mb-2 block">Data Source</Label>
+                    <RadioGroup defaultValue="alphavantage" onValueChange={(value) => setApiSource(value as 'alphavantage' | 'yahoo')} className="flex items-center gap-6">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="alphavantage" id="r1" />
+                            <Label htmlFor="r1" className="flex items-center gap-2 cursor-pointer"><Bot/> Alpha Vantage API</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yahoo" id="r2" />
+                            <Label htmlFor="r2" className="flex items-center gap-2 cursor-pointer"><Code/> Yahoo Finance (Scrape)</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                     <div className="grid gap-1.5 flex-grow w-full">
                         <Label htmlFor="symbol-input">Stock Symbol</Label>
@@ -188,7 +203,7 @@ function StockPriceFetcher() {
                             id="symbol-input"
                             value={symbol}
                             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                            placeholder="e.g. RELIANCE.BSE"
+                            placeholder={sourceConfig[apiSource].placeholder}
                         />
                     </div>
                     <Button onClick={handleFetch} disabled={isLoading} className="w-full sm:w-auto mt-4 sm:mt-0 self-end">
@@ -196,6 +211,7 @@ function StockPriceFetcher() {
                         Fetch Price
                     </Button>
                 </div>
+
                 {result && (
                     <div className="mt-6 grid gap-4">
                         {result.price !== undefined && (
@@ -204,11 +220,11 @@ function StockPriceFetcher() {
                                 <p className="text-2xl font-bold text-primary">{result.price.toFixed(2)}</p>
                             </div>
                         )}
-                        {result.rawData && (
+                         {result.rawData && (
                             <div>
-                               <h4 className="font-semibold mb-2">Raw API Response</h4>
+                               <h4 className="font-semibold mb-2">Raw Response</h4>
                                <ScrollArea className="h-64 w-full rounded-md border bg-muted">
-                                  <pre className="p-4 text-xs font-mono">{JSON.stringify(result.rawData, null, 2)}</pre>
+                                  <pre className="p-4 text-xs font-mono">{typeof result.rawData === 'string' ? result.rawData : JSON.stringify(result.rawData, null, 2)}</pre>
                                 </ScrollArea>
                             </div>
                         )}
@@ -218,6 +234,7 @@ function StockPriceFetcher() {
         </Card>
     );
 }
+
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
@@ -289,7 +306,7 @@ export default function AdminPage() {
     setGrowwSchema(prev => ({ ...prev, [field]: value }));
   };
   
-  const hasAssets = useMemo(() => assets !== null, [assets]);
+  const hasAssets = assets !== null;
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">

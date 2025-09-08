@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 
+// Zod schema for Alpha Vantage API response
 const stockPriceSchema = z.object({
   "Global Quote": z.object({
     "01. symbol": z.string(),
@@ -10,13 +11,17 @@ const stockPriceSchema = z.object({
   }).optional(),
 });
 
-export type StockPriceResponse = {
+export type ApiResponse = {
     price?: number;
     error?: string;
     rawData?: any;
 }
 
-export async function getStockPrice(symbol: string): Promise<StockPriceResponse> {
+/**
+ * Fetches the stock price from Alpha Vantage.
+ * @param symbol The stock symbol, e.g., 'RELIANCE.BSE' or 'IBM'
+ */
+export async function getStockPrice(symbol: string): Promise<ApiResponse> {
   const apiKey = process.env.ALPHAVANTAGE_API_KEY;
 
   if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
@@ -59,4 +64,48 @@ export async function getStockPrice(symbol: string): Promise<StockPriceResponse>
     }
     return { error: 'An unknown error occurred while fetching the stock price.' };
   }
+}
+
+/**
+ * Scrapes the stock price from Yahoo Finance.
+ * Note: This is fragile and may break if Yahoo changes its website structure.
+ * @param symbol The stock symbol, e.g., 'RELIANCE.NS' or 'AAPL'
+ */
+export async function scrapeYahooFinancePrice(symbol: string): Promise<ApiResponse> {
+    const url = `https://finance.yahoo.com/quote/${symbol}`;
+    const headers = {
+        // Use a common user agent to mimic a browser
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    };
+
+    try {
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+            const errorText = await response.text();
+            return { error: `Failed to fetch page with status ${response.status}.`, rawData: errorText };
+        }
+        
+        const html = await response.text();
+        
+        // This is a very fragile method to find the price.
+        // It looks for a specific data attribute near the price.
+        const regex = new RegExp(`data-symbol="${symbol.toUpperCase()}"[^>]*?data-field="regularMarketPrice"[^>]*?value="([^"]+)"`);
+        const match = html.match(regex);
+        
+        if (match && match[1]) {
+            const price = parseFloat(match[1].replace(/,/g, ''));
+            if (!isNaN(price)) {
+                return { price, rawData: html };
+            }
+        }
+
+        return { error: 'Could not find or parse the price from the Yahoo Finance page. The website structure may have changed.', rawData: html };
+
+    } catch (error) {
+        console.error("Error scraping Yahoo Finance:", error);
+        if (error instanceof Error) {
+            return { error: error.message };
+        }
+        return { error: 'An unknown error occurred while scraping Yahoo Finance.' };
+    }
 }

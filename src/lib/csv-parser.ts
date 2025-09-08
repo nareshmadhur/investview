@@ -131,7 +131,7 @@ function parseGrowwDate(dateStr: string): Date | null {
     return date;
 }
 
-const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseResult => {
+const parseGroww = (lines: string[]): ParseResult => {
     const logs: ParsingLogs = initialLogs();
     if (lines.length === 0) {
         const error = 'The uploaded Groww CSV file is empty.';
@@ -150,8 +150,9 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         logs.setup.push(`Error: ${error}`);
         return { assets: [], transactions: [], error, logs };
     }
-
-    const mapping: GrowwSchemaMapping = schemaMapping || {
+    
+    // Hardcoded schema for Groww as the configuration UI is removed.
+    const mapping: GrowwSchemaMapping = {
         displayName: 'Stock name', symbol: 'Symbol', exchange: 'Exchange', type: 'Type',
         quantity: 'Quantity', price: 'Price', date: 'Execution date and time', status: 'Order status',
     };
@@ -281,7 +282,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     return { assets, transactions, logs, realizedProfit };
 };
 
-export const parseCSV = (csvText: string, template: CsvTemplate = 'default', growwSchema?: GrowwSchemaMapping): ParseResult => {
+
+export const parseCSV = (csvText: string, template: CsvTemplate = 'default'): ParseResult => {
   if (!csvText) {
     const error = 'The uploaded CSV file is empty.';
     return { assets: [], transactions: [], error, logs: { setup: [`Error: ${error}`], assetLogs: {}, summary: [] } };
@@ -290,11 +292,9 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default', gro
   
   switch(template) {
     case 'groww':
-      return parseGroww(lines, growwSchema);
+      return parseGroww(lines);
     case 'default':
     default:
       return parseDefault(lines);
   }
 };
-
-    

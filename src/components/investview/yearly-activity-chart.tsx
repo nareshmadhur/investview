@@ -56,7 +56,7 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
                 <CardTitle>Yearly Investment Activity</CardTitle>
                 <CardDescription>No transaction data available to display.</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center justify-center h-[300px]">
+            <CardContent className="flex items-center justify-center h-[350px]">
                 <p className="text-muted-foreground">Upload a CSV to see your activity.</p>
             </CardContent>
         </Card>
@@ -73,14 +73,14 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
 
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader>
         <CardTitle>Yearly Investment Activity</CardTitle>
         <CardDescription>Total buy and sell value per year.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={350}>
             <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                 <XAxis dataKey="year" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
                 <YAxis

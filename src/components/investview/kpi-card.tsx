@@ -60,7 +60,6 @@ export default function KpiCard({ title, value, format = 'number', icon: Icon, c
         <div className={cn("text-2xl font-bold", value < 0 && 'text-destructive')}>
           {displayValue}
         </div>
-        <p className="text-xs text-muted-foreground mt-1">&nbsp;</p>
       </CardContent>
     </Card>
   );

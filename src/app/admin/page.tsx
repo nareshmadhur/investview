@@ -233,18 +233,8 @@ function YahooFinancePriceFetcher() {
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileName, setFileName]  = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
-  const [growwSchema, setGrowwSchema] = useState({
-      displayName: 'Stock name',
-      symbol: 'Symbol',
-      exchange: 'Exchange',
-      type: 'Type',
-      quantity: 'Quantity',
-      price: 'Price',
-      date: 'Execution date and time',
-      status: 'Order status',
-  });
   const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[], isPriceLive: boolean} | null>(null);
@@ -267,7 +257,7 @@ export default function AdminPage() {
       reader.onload = async (e) => {
         try {
           const text = e.target?.result as string;
-          const result: ParseResult = parseCSV(text, csvTemplate, csvTemplate === 'groww' ? growwSchema : undefined);
+          const result: ParseResult = parseCSV(text, csvTemplate);
           
           setParsingLogs(result.logs || null);
 
@@ -345,10 +335,6 @@ export default function AdminPage() {
     setIsFetchingPrice(false);
   }
 
-  const handleSchemaChange = (field: keyof typeof growwSchema, value: string) => {
-    setGrowwSchema(prev => ({ ...prev, [field]: value }));
-  };
-  
   const hasAssets = assets !== null;
 
   return (
@@ -394,37 +380,7 @@ export default function AdminPage() {
               <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="sr-only" disabled={isParsing} />
             </CardContent>
           </Card>
-
-          {csvTemplate === 'groww' && (
-             <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="item-1">
-                    <AccordionTrigger>
-                        <div className="flex items-center gap-2">
-                            <Settings className="w-6 h-6" />
-                            <span className="text-lg">Groww Schema Configuration</span>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                        <Card className="border-0">
-                             <CardHeader className="pt-2">
-                                <CardDescription>
-                                Define the column names from your Groww CSV file. The parser will look for these exact names in the header row.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {(Object.keys(growwSchema) as Array<keyof typeof growwSchema>).map(key => (
-                                <div key={key} className="grid gap-1.5">
-                                    <Label htmlFor={`schema-${key}`} className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
-                                    <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} />
-                                </div>
-                                ))}
-                            </CardContent>
-                        </Card>
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
-          )}
-
+          
           {isParsing && (
             <div className="flex justify-center items-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -580,5 +536,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    

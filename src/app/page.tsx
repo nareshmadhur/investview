@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash, Settings, CircleDollarSign, Wallet } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Settings, CircleDollarSign, Wallet } from 'lucide-react';
 
 import KpiCard from '@/components/investview/kpi-card';
 import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
@@ -26,7 +26,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('default');
+  const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function Home() {
     if (savedData) {
       try {
         let parsedData = JSON.parse(savedData, (key, value) => {
-          if (key === 'transactions' && Array.isArray(value)) {
+          if ((key === 'transactions' || key === 'logs') && Array.isArray(value)) {
             return value.map((t: any) => ({ ...t, date: new Date(t.date)}));
           }
            if (key === 'assets' && Array.isArray(value)) {
@@ -102,6 +102,7 @@ export default function Home() {
           const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
           
           // Fetch live prices
+          toast({ title: 'Fetching Live Prices...', description: `Fetching market data for ${result.assets.length} assets.`})
           const assetsWithLivePrices = await fetchLivePrices(result.assets);
 
           let finalPortfolio = calculatePortfolioMetrics(assetsWithLivePrices, result.transactions, currency, result.realizedProfit);
@@ -179,11 +180,6 @@ export default function Home() {
     document.body.removeChild(link);
   };
   
-  const uniqueAssetsCount = useMemo(() => {
-    if (!portfolio) return 0;
-    return portfolio.assets.length;
-  }, [portfolio]);
-
   const totalTransactions = useMemo(() => {
     if (!portfolio || !portfolio.transactions) return 0;
     return portfolio.transactions.length;
@@ -294,13 +290,15 @@ export default function Home() {
                   icon={Wallet} 
                   currency={portfolio.currency}
                   fractionDigits={2}
-                  tooltipText="The total current market value of your holdings."
+                  tooltipText="The total current market value of your holdings, based on live prices."
                 />
-                <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />
+                <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} tooltipText="The total number of buy/sell transactions found in your file." />
               </div>
 
-              <div className="grid gap-8 lg:grid-cols-2">
-                 <PerformanceTable assets={portfolio.assets} currency={portfolio.currency} />
+              <div className="grid gap-8 lg:grid-cols-3">
+                 <div className="lg:col-span-2">
+                    <PerformanceTable assets={portfolio.assets} currency={portfolio.currency} />
+                 </div>
                  <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
               </div>
 
@@ -344,5 +342,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

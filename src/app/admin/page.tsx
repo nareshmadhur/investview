@@ -313,8 +313,13 @@ export default function AdminPage() {
          toast({
             variant: 'destructive',
             title: `Price Fetch Failed for ${asset.asset}`,
-            description: result.error || 'Could not fetch the latest market price.',
-            duration: 4000,
+            description: (
+              <div>
+                <p>Query: {asset.asset}</p>
+                <p>{result.error || 'Could not fetch the latest market price.'}</p>
+              </div>
+            ),
+            duration: 6000,
         });
     }
 
@@ -494,5 +499,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    

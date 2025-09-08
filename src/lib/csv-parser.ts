@@ -65,6 +65,8 @@ const parseDefault = (lines: string[]): ParseResult => {
        assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Malformed row. Expected ${headers.length}, got ${data.length}`, result: 'Skipped' });
        continue;
     }
+    
+    assetLogs.push({ step: `Row ${i + 1}`, action: 'Construct Ticker', details: `Using Symbol: "${symbol}" and Exchange: "${exchange}"`, result: `Yahoo Ticker: "${assetName}"` });
 
     const assetType = data[assetTypeIndex].trim() as Asset['assetType'];
     if (assetType !== 'Stock' && assetType !== 'Cryptocurrency' && assetType !== 'Commodity') {
@@ -94,7 +96,7 @@ const parseDefault = (lines: string[]): ParseResult => {
     };
     allTransactions.push(transaction);
     logs.assetLogs[assetName].transactions.push(transaction);
-    assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: `Parsed transaction.`, result: `Type: BUY, Qty: ${quantity}` });
+    assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `Aggregating values for ${assetName}.`, result: `New Qty: ${holdings[assetName].quantity}` });
   }
 
   const assets: Asset[] = Object.entries(holdings).map(([assetName, holding]) => ({
@@ -180,20 +182,29 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
 
         const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
         const displayName = data[assetIndex];
-        const assetName = `${displayName}.NSE`; 
+        // Heuristic: Assume NSE for Groww stocks and strip spaces for the ticker symbol
+        const symbol = displayName.replace(/\s+/g, '');
+        const assetName = `${symbol}.NS`; 
 
         if (!logs.assetLogs[assetName]) {
           logs.assetLogs[assetName] = { logs: [], transactions: [] };
         }
         
+        const assetLogs = logs.assetLogs[assetName].logs;
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Read', details: `Raw data: [${data.join(', ')}]`, result: '' });
+        
         if (data.length < headers.length) {
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Malformed row.`, result: 'Skipped' });
             continue;
         }
 
         const status = data[statusIndex].toUpperCase();
         if (status !== 'EXECUTED') {
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Order status is "${status}", not "EXECUTED"`, result: 'Skipped' });
             continue;
         }
+        
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Construct Ticker', details: `Using Stock Name: "${displayName}"`, result: `Yahoo Ticker: "${assetName}"` });
 
         const quantity = parseFloat(data[quantityIndex]);
         const totalValue = parseFloat(data[priceIndex]);
@@ -202,10 +213,12 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const date = parseGrowwDate(dateStr);
         
         if (!assetName || isNaN(quantity) || quantity === 0 || isNaN(totalValue) || !date || isNaN(date.getTime())) {
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid number, date, or name. Qty: ${quantity}, Val: ${totalValue}, Date: ${dateStr}`, result: 'Skipped' });
             continue;
         }
 
         if (type !== 'BUY' && type !== 'SELL') {
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid transaction type: "${type}"`, result: 'Skipped' });
             continue;
         }
         
@@ -218,6 +231,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
             holdings[assetName] = { displayName, quantity: 0, totalCost: 0 };
         }
         const holding = holdings[assetName];
+        
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `Type: ${type}, Qty: ${quantity}, Price: ${pricePerShare}`, result: '' });
 
         if (type === 'BUY') {
             holding.quantity += quantity;
@@ -240,6 +255,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
                 holding.totalCost = 0;
             }
         }
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Aggregate', details: `Aggregation complete for ${assetName}.`, result: `New Qty: ${holding.quantity}` });
+
     }
 
     const assets: Asset[] = Object.entries(holdings)

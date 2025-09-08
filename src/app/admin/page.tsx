@@ -426,6 +426,69 @@ export default function AdminPage() {
             </div>
           )}
 
+          {parsingLogs && (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Parsing Logs</CardTitle>
+                    <CardDescription>Detailed step-by-step process of how the CSV file was parsed.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="setup">
+                            <AccordionTrigger>Setup and Header Validation</AccordionTrigger>
+                            <AccordionContent>
+                                <ul className="list-disc pl-5 font-mono text-xs space-y-1">
+                                    {parsingLogs.setup.map((log, i) => <li key={i}>{log}</li>)}
+                                </ul>
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="assets">
+                             <AccordionTrigger>Asset Processing ({Object.keys(parsingLogs.assetLogs).length} assets)</AccordionTrigger>
+                             <AccordionContent>
+                                <Accordion type="multiple" className="w-full">
+                                    {Object.entries(parsingLogs.assetLogs).map(([assetName, assetLog]) => (
+                                        <AccordionItem value={assetName} key={assetName}>
+                                            <AccordionTrigger>{assetName}</AccordionTrigger>
+                                            <AccordionContent>
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Step</TableHead>
+                                                            <TableHead>Action</TableHead>
+                                                            <TableHead>Details</TableHead>
+                                                            <TableHead>Result</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {assetLog.logs.map((log, i) => (
+                                                            <TableRow key={i}>
+                                                                <TableCell className="font-mono text-xs">{log.step}</TableCell>
+                                                                <TableCell className="font-mono text-xs">{log.action}</TableCell>
+                                                                <TableCell className="font-mono text-xs">{log.details}</TableCell>
+                                                                <TableCell className="font-mono text-xs">{log.result}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))}
+                                </Accordion>
+                             </AccordionContent>
+                        </AccordionItem>
+                         <AccordionItem value="summary">
+                            <AccordionTrigger>Summary</AccordionTrigger>
+                            <AccordionContent>
+                                 <ul className="list-disc pl-5 font-mono text-xs space-y-1">
+                                    {parsingLogs.summary.map((log, i) => <li key={i}>{log}</li>)}
+                                </ul>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </CardContent>
+            </Card>
+          )}
+
           {hasAssets && assets.length > 0 && (
             <Card>
               <CardHeader>

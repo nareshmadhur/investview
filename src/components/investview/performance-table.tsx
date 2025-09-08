@@ -25,9 +25,9 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
   const assetsWithValues = assets.map(asset => {
     const cost = asset.quantity * asset.purchasePrice;
     const currentValue = asset.quantity * asset.currentPrice;
-    const dayPL = currentValue - cost;
-    const dayPLPercent = cost > 0 ? (dayPL / cost) * 100 : 0;
-    return { ...asset, cost, currentValue, dayPL, dayPLPercent };
+    const unrealizedPL = currentValue - cost;
+    const unrealizedPLPercent = cost > 0 ? (unrealizedPL / cost) * 100 : 0;
+    return { ...asset, cost, currentValue, unrealizedPL, unrealizedPLPercent };
   }).sort((a, b) => b.currentValue - a.currentValue);
 
 
@@ -65,9 +65,9 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
                     <TableCell className="text-right font-bold">
                         {formatCurrency(asset.currentValue, currency)}
                     </TableCell>
-                    <TableCell className={cn("text-right font-mono", asset.dayPL >= 0 ? 'text-green-600' : 'text-red-600')}>
-                        <div>{formatCurrency(asset.dayPL, currency)}</div>
-                        <div className="text-xs">({asset.dayPLPercent.toFixed(2)}%)</div>
+                    <TableCell className={cn("text-right font-mono", asset.unrealizedPL >= 0 ? 'text-green-600' : 'text-red-600')}>
+                        <div>{formatCurrency(asset.unrealizedPL, currency)}</div>
+                        <div className="text-xs">({asset.unrealizedPLPercent.toFixed(2)}%)</div>
                     </TableCell>
                 </TableRow>
                 ))}

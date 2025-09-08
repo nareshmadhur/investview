@@ -78,9 +78,9 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
         <CardTitle>Yearly Investment Activity</CardTitle>
         <CardDescription>Total buy and sell value per year.</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1">
+      <CardContent className="flex-1 pb-4">
         <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height={350}>
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                 <XAxis dataKey="year" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
                 <YAxis

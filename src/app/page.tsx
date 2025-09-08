@@ -270,7 +270,7 @@ export default function Home() {
                   <CardDescription>
                     Get high-level suggestions from our AI to understand your portfolio's performance at a glance.
                   </CardDescription>
-                </Header>
+                </CardHeader>
                 <CardContent>
                   <Button onClick={generateAISuggestions} disabled={isAnalyzing}>
                     {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

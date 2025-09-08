@@ -176,10 +176,10 @@ export default function Home() {
       <header className="p-4 border-b shadow-sm flex justify-between items-center">
         <h1 className="text-2xl font-bold font-headline text-primary">InvestView</h1>
         <Link href="/admin">
-            <Button variant="outline">
-                <Settings className="mr-2 h-4 w-4" />
-                Admin Panel
-            </Button>
+          <Button variant="outline">
+            <Settings className="mr-2 h-4 w-4" />
+            Admin Panel
+          </Button>
         </Link>
       </header>
 

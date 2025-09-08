@@ -16,26 +16,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp, RefreshCw } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({
     asset,
     transactions,
     currency,
-    livePriceInfo,
-    onRefetch,
-    isRefetching
 }: {
     asset: Asset,
     transactions: Transaction[],
     currency: 'USD' | 'INR',
-    livePriceInfo: { price?: number; currency?: string; error?: string; },
-    onRefetch: (symbol: string) => Promise<void>,
-    isRefetching: boolean
 }) {
-    const [editableSymbol, setEditableSymbol] = useState(asset.asset);
-
     if (!transactions) {
         return <p className="text-sm text-muted-foreground">No transaction data available for this asset.</p>;
     }
@@ -54,48 +46,12 @@ function AssetLogsView({
     const avgBuyPrice = totalBuyQuantity > 0 ? totalBuyValue / totalBuyQuantity : 0;
     const realizedProfit = totalSellValue - (avgBuyPrice * totalSellQuantity);
     
-    const currentPrice = livePriceInfo.price || asset.purchasePrice;
-    const currentValue = asset.quantity * currentPrice;
+    const currentValue = asset.quantity * asset.currentPrice;
     const unrealizedPL = currentValue - (asset.quantity * avgBuyPrice);
 
     return (
         <ScrollArea className="h-[70vh] w-full">
             <div className="grid gap-6 p-1">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                            <RefreshCw className="w-5 h-5"/>
-                            Live Data Debugger
-                        </CardTitle>
-                         <CardDescription>
-                            The query below was used to fetch the live price. You can edit it and re-fetch to test different symbols.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex w-full items-center space-x-2">
-                           <div className="grid w-full gap-1.5">
-                             <Label htmlFor="symbol-debug">Yahoo Finance Query</Label>
-                             <Input
-                                id="symbol-debug"
-                                type="text"
-                                value={editableSymbol}
-                                onChange={(e) => setEditableSymbol(e.target.value.toUpperCase())}
-                            />
-                           </div>
-                            <Button onClick={() => onRefetch(editableSymbol)} disabled={isRefetching} className="self-end">
-                                {isRefetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                                Re-fetch Price
-                            </Button>
-                        </div>
-                         {livePriceInfo.error && (
-                            <div className="mt-4 text-destructive p-2 bg-destructive/10 rounded-md border border-destructive/20 text-sm">
-                                <p className="font-semibold">An error occurred:</p>
-                                <p>{livePriceInfo.error}</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
                 <div>
                     <h4 className="font-semibold text-lg mb-2">Transactions</h4>
                     <div className="rounded-md border">
@@ -172,7 +128,7 @@ function AssetLogsView({
                                 </TableRow>
                                 <TableRow className="bg-muted/50">
                                     <TableCell className="font-medium flex items-center gap-2"><Database className="w-4 h-4 text-primary"/>Current Market Price</TableCell>
-                                    <TableCell className="text-right font-mono">{formatCurrency(currentPrice)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(asset.currentPrice)}</TableCell>
                                 </TableRow>
                                 <TableRow className="bg-muted/50">
                                     <TableCell className="font-medium flex items-center gap-2"><Wallet className="w-4 h-4 text-primary"/>Current Market Value</TableCell>
@@ -282,7 +238,6 @@ export default function AdminPage() {
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[]} | null>(null);
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
-  const [livePriceInfo, setLivePriceInfo] = useState<{ price?: number; currency?: string; error?: string } | null>(null);
   const { toast } = useToast();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,7 +248,6 @@ export default function AdminPage() {
       setAssets(null);
       setParsingLogs(null);
       setSelectedAsset(null);
-      setLivePriceInfo(null);
       const selectedCurrency = csvTemplate === 'groww' ? 'INR' : 'USD';
       setCurrency(selectedCurrency);
       toast({ title: 'Processing File', description: 'Parsing your CSV file...' });
@@ -347,13 +301,13 @@ export default function AdminPage() {
   
   const handleViewTransactions = async (asset: Asset) => {
     setIsFetchingPrice(true);
-    setLivePriceInfo(null);
     toast({ title: 'Fetching Live Price...', description: `Getting latest market data for ${asset.asset}`});
     const result = await getYahooFinancePrice(asset.asset);
     
-    setLivePriceInfo(result);
+    let updatedAsset = { ...asset };
 
     if (result.price) {
+        updatedAsset.currentPrice = result.price;
         toast({ title: 'Price Updated!', description: `Successfully fetched price for ${asset.asset}`});
     } else {
          toast({
@@ -365,28 +319,11 @@ export default function AdminPage() {
     }
 
     setSelectedAsset({
-      asset,
+      asset: updatedAsset,
       transactions: parsingLogs?.assetLogs?.[asset.asset]?.transactions || []
     });
     setIsFetchingPrice(false);
   }
-
-  const handleRefetchPrice = async (symbol: string) => {
-      setIsFetchingPrice(true);
-      setLivePriceInfo(null);
-      toast({ title: 'Re-fetching Price...', description: `Getting market data for ${symbol}` });
-
-      const result = await getYahooFinancePrice(symbol);
-      setLivePriceInfo(result);
-
-      if (result.error) {
-          toast({ variant: 'destructive', title: `Price Fetch Failed for ${symbol}`, description: result.error, duration: 5000 });
-      } else if (result.price) {
-          toast({ variant: 'default', title: 'Price Updated!', description: `Successfully fetched price for ${symbol}.` });
-      }
-      setIsFetchingPrice(false);
-  }
-
 
   const handleSchemaChange = (field: keyof typeof growwSchema, value: string) => {
     setGrowwSchema(prev => ({ ...prev, [field]: value }));
@@ -521,7 +458,7 @@ export default function AdminPage() {
           
           <Dialog open={!!selectedAsset} onOpenChange={(isOpen) => !isOpen && setSelectedAsset(null)}>
               <DialogContent className="max-w-4xl">
-                {selectedAsset && livePriceInfo && (
+                {selectedAsset && (
                   <>
                   <DialogHeader>
                     <DialogTitle>Transaction Summary for: {selectedAsset.asset.asset}</DialogTitle>
@@ -531,9 +468,6 @@ export default function AdminPage() {
                       asset={selectedAsset.asset}
                       transactions={selectedAsset.transactions} 
                       currency={currency}
-                      livePriceInfo={livePriceInfo}
-                      onRefetch={handleRefetchPrice}
-                      isRefetching={isFetchingPrice}
                     />
                   </div>
                   </>
@@ -560,3 +494,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

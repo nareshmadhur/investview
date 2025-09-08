@@ -27,9 +27,7 @@ const parseDefault = (lines: string[]): ParseResult => {
 
   const headers = lines[0].split(',').map(h => h.trim());
   logs.setup.push(`Detected headers: ${headers.join(', ')}`);
-  const assets: Asset[] = [];
-  const transactions: Transaction[] = [];
-
+  
   const requiredHeaders = ['Symbol', 'Exchange', 'Quantity', 'PurchasePrice', 'AssetType'];
   const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
   if (missingHeaders.length > 0) {
@@ -44,6 +42,9 @@ const parseDefault = (lines: string[]): ParseResult => {
   const purchasePriceIndex = headers.indexOf('PurchasePrice');
   const assetTypeIndex = headers.indexOf('AssetType');
   const dateIndex = headers.indexOf('Date');
+  
+  const holdings: Record<string, { quantity: number; totalCost: number; assetType: Asset['assetType'] }> = {};
+  const allTransactions: Transaction[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
@@ -58,7 +59,6 @@ const parseDefault = (lines: string[]): ParseResult => {
       logs.assetLogs[assetName] = { logs: [], transactions: [] };
     }
     const assetLogs = logs.assetLogs[assetName].logs;
-
     assetLogs.push({ step: `Row ${i + 1}`, action: 'Read', details: `Raw data: [${data.join(', ')}]`, result: '' });
 
     if (data.length < headers.length) {
@@ -66,7 +66,7 @@ const parseDefault = (lines: string[]): ParseResult => {
        continue;
     }
 
-    const assetType = data[assetTypeIndex].trim();
+    const assetType = data[assetTypeIndex].trim() as Asset['assetType'];
     if (assetType !== 'Stock' && assetType !== 'Cryptocurrency' && assetType !== 'Commodity') {
       assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid AssetType: ${assetType}`, result: 'Skipped' });
       continue;
@@ -76,34 +76,38 @@ const parseDefault = (lines: string[]): ParseResult => {
     const purchasePrice = parseFloat(data[purchasePriceIndex]);
     const date = dateIndex !== -1 && data[dateIndex] ? new Date(data[dateIndex].trim()) : new Date();
 
-
     if (isNaN(quantity) || isNaN(purchasePrice)) {
       assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid number format in row.`, result: 'Skipped' });
       continue;
     }
-
-    assets.push({
-      asset: assetName,
-      quantity,
-      purchasePrice,
-      currentPrice: purchasePrice,
-      assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
-    });
     
+    if (!holdings[assetName]) {
+        holdings[assetName] = { quantity: 0, totalCost: 0, assetType };
+    }
+    
+    // For default, we assume each row is a simple holding, not a transaction history
+    holdings[assetName].quantity += quantity;
+    holdings[assetName].totalCost += quantity * purchasePrice;
+
     const transaction = {
-        asset: assetName,
-        quantity,
-        price: purchasePrice,
-        type: 'BUY' as 'BUY' | 'SELL',
-        date,
-        assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
+        asset: assetName, quantity, price: purchasePrice,
+        type: 'BUY' as 'BUY' | 'SELL', date, assetType,
     };
-    transactions.push(transaction);
+    allTransactions.push(transaction);
     logs.assetLogs[assetName].transactions.push(transaction);
-    assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: `Parsed transaction.`, result: `Type: ${transaction.type}, Qty: ${transaction.quantity}` });
+    assetLogs.push({ step: `Row ${i + 1}`, action: 'Parse', details: `Parsed transaction.`, result: `Type: BUY, Qty: ${quantity}` });
   }
-  logs.summary.push(`Finished processing. Total assets found: ${assets.length}. Total transactions: ${transactions.length}.`);
-  return { assets, transactions, logs };
+
+  const assets: Asset[] = Object.entries(holdings).map(([assetName, holding]) => ({
+      asset: assetName,
+      quantity: holding.quantity,
+      purchasePrice: holding.totalCost / holding.quantity,
+      currentPrice: holding.totalCost / holding.quantity, // Default to purchase price
+      assetType: holding.assetType
+  }));
+
+  logs.summary.push(`Finished processing. Total assets found: ${assets.length}. Total transactions: ${allTransactions.length}.`);
+  return { assets, transactions: allTransactions, logs };
 }
 
 function parseGrowwDate(dateStr: string): Date | null {
@@ -176,7 +180,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
 
         const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
         const symbol = data[assetIndex];
-        const assetName = `${symbol}.NS`; // Assume NSE for Groww stocks
+        const assetName = `${symbol}.NSE`; // Assume NSE for Groww stocks
 
         if (!logs.assetLogs[assetName]) {
           logs.assetLogs[assetName] = { logs: [], transactions: [] };
@@ -270,3 +274,5 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default', gro
       return parseDefault(lines);
   }
 };
+
+    

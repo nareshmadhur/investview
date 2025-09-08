@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getEodhdSingleStockPrice, type EodhdRecord } from './actions';
+import { getEodhdSingleStockPrice } from './actions';
+import type { EodhdRecord } from '@/types';
 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -380,7 +381,8 @@ export default function AdminPage() {
                     <TableBody>
                       {assets.map((asset, index) => (
                         <TableRow key={`${asset.asset}-${index}`}>
-                          <TableCell className="font-medium">{asset.asset}</TableCell>                          <TableCell>{asset.quantity.toFixed(4)}</TableCell>
+                          <TableCell className="font-medium">{asset.asset}</TableCell>
+                          <TableCell>{asset.quantity.toFixed(4)}</TableCell>
                           <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
                           <TableCell>{asset.assetType}</TableCell>
                           <TableCell className="text-right">

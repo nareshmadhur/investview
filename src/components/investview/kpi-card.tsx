@@ -21,11 +21,12 @@ type KpiCardProps = {
 };
 
 const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits: number) => {
+  const digits = currency === 'INR' ? 0 : fractionDigits;
   return new Intl.NumberFormat('en-US', { 
     style: 'currency', 
     currency,
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   }).format(value);
 };
 

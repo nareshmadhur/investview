@@ -1,4 +1,7 @@
 
+'use client';
+
+import { useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -11,25 +14,75 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import type { Asset } from '@/types';
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "../ui/scroll-area";
+import { ArrowUpDown } from "lucide-react";
+import { Button } from "../ui/button";
 
-const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits = 2) => {
-  return new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
+
+type SortKey = 'displayName' | 'currentValue' | 'unrealizedPL';
+
+const formatCurrency = (value: number, currency: 'USD' | 'INR') => {
+  const fractionDigits = currency === 'INR' ? 0 : 2;
+  return new Intl.NumberFormat('en-US', {
+      style: 'currency',
       currency,
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
     }).format(value);
 };
 
-export default function PerformanceTable({ assets, currency }: { assets: Asset[], currency: 'USD' | 'INR' }) {
-  const assetsWithValues = assets.map(asset => {
-    const cost = asset.quantity * asset.purchasePrice;
-    const currentValue = asset.quantity * asset.currentPrice;
-    const unrealizedPL = currentValue - cost;
-    const unrealizedPLPercent = cost > 0 ? (unrealizedPL / cost) * 100 : 0;
-    return { ...asset, cost, currentValue, unrealizedPL, unrealizedPLPercent };
-  }).sort((a, b) => b.currentValue - a.currentValue);
+const formatShares = (quantity: number) => {
+    if (quantity % 1 === 0) {
+        return quantity.toString();
+    }
+    return quantity.toFixed(4);
+};
 
+
+export default function PerformanceTable({ assets, currency }: { assets: Asset[], currency: 'USD' | 'INR' }) {
+  const [sortKey, setSortKey] = useState<SortKey>('currentValue');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const assetsWithValues = useMemo(() => {
+    return assets.map(asset => {
+        const cost = asset.quantity * asset.purchasePrice;
+        const currentValue = asset.quantity * asset.currentPrice;
+        const unrealizedPL = currentValue - cost;
+        const unrealizedPLPercent = cost > 0 ? (unrealizedPL / cost) * 100 : 0;
+        return { ...asset, cost, currentValue, unrealizedPL, unrealizedPLPercent };
+    });
+  }, [assets]);
+
+  const sortedAssets = useMemo(() => {
+    return [...assetsWithValues].sort((a, b) => {
+        const aValue = a[sortKey];
+        const bValue = b[sortKey];
+        
+        let comparison = 0;
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+            comparison = aValue.localeCompare(bValue);
+        } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+            comparison = aValue - bValue;
+        }
+
+        return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [assetsWithValues, sortKey, sortDirection]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('desc');
+    }
+  };
+
+  const SortableHeader = ({ tkey, label }: { tkey: SortKey, label: string}) => (
+    <Button variant="ghost" onClick={() => handleSort(tkey)} className="px-0 hover:bg-transparent">
+        {label}
+        <ArrowUpDown className={cn("ml-2 h-4 w-4", sortKey !== tkey && "text-muted-foreground/50")} />
+    </Button>
+  );
 
   return (
     <Card>
@@ -40,27 +93,30 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
       <CardContent>
         <ScrollArea className="h-96">
             <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead className="text-right">Avg. Cost</TableHead>
-                    <TableHead className="text-right">Current Price</TableHead>
-                    <TableHead className="text-right">Current Value</TableHead>
-                    <TableHead className="text-right">Unrealized P/L</TableHead>
+                    <TableHead>
+                        <SortableHeader tkey="displayName" label="Asset" />
+                    </TableHead>
+                    <TableHead className="text-right">Avg. Cost / Current</TableHead>
+                    <TableHead className="text-right">
+                        <SortableHeader tkey="currentValue" label="Current Value" />
+                    </TableHead>
+                    <TableHead className="text-right">
+                        <SortableHeader tkey="unrealizedPL" label="Unrealized P/L" />
+                    </TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {assetsWithValues.map((asset, index) => (
+                {sortedAssets.map((asset, index) => (
                 <TableRow key={`${asset.asset}-${index}`}>
                     <TableCell>
                         <div className="font-medium">{asset.displayName}</div>
-                        <div className="text-xs text-muted-foreground">{asset.quantity.toFixed(4)} shares</div>
+                        <div className="text-xs text-muted-foreground">{formatShares(asset.quantity)} shares</div>
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                        {formatCurrency(asset.purchasePrice, currency)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                        {formatCurrency(asset.currentPrice, currency)}
+                    <TableCell className="text-right font-mono text-xs">
+                        <div>{formatCurrency(asset.purchasePrice, currency)}</div>
+                        <div className="text-muted-foreground">{formatCurrency(asset.currentPrice, currency)}</div>
                     </TableCell>
                     <TableCell className="text-right font-bold">
                         {formatCurrency(asset.currentValue, currency)}

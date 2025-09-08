@@ -92,7 +92,18 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
                 />
                 <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dot" />}
+                    content={<ChartTooltipContent 
+                        indicator="dot"
+                        formatter={(value, name, props) => {
+                           const formattedValue = new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency,
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0,
+                            }).format(value as number);
+                            return [formattedValue, name];
+                        }}
+                     />}
                 />
                 <Bar dataKey="buy" fill="var(--color-buy)" radius={4} />
                 <Bar dataKey="sell" fill="var(--color-sell)" radius={4} />

@@ -23,9 +23,8 @@ const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits =
 export default function PerformanceTable({ assets, currency }: { assets: Asset[], currency: 'USD' | 'INR' }) {
   const assetsWithValues = assets.map(asset => {
     const cost = asset.quantity * asset.purchasePrice;
-    const currentValue = asset.quantity * asset.currentPrice;
-    return { ...asset, cost, currentValue };
-  }).sort((a, b) => b.currentValue - a.currentValue);
+    return { ...asset, cost };
+  }).sort((a, b) => b.cost - a.cost);
 
   const getBadgeVariant = (assetType: string) => {
     switch (assetType) {
@@ -40,7 +39,7 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
     <Card>
       <CardHeader>
         <CardTitle>Portfolio Holdings</CardTitle>
-        <CardDescription>A detailed breakdown of your individual assets by current value.</CardDescription>
+        <CardDescription>A detailed breakdown of your individual assets by invested value.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="relative w-full overflow-auto max-h-96">
@@ -50,8 +49,7 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
                 <TableHead>Asset</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead className="text-right">Avg. Cost</TableHead>
-                <TableHead className="text-right">Current Price</TableHead>
-                <TableHead className="text-right">Current Value</TableHead>
+                <TableHead className="text-right">Total Cost</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -65,11 +63,8 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
                     <TableCell className="text-right font-mono">
                         {formatCurrency(asset.purchasePrice, currency)}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                        {formatCurrency(asset.currentPrice, currency)}
-                    </TableCell>
                      <TableCell className="text-right font-bold">
-                        {formatCurrency(asset.currentValue, currency)}
+                        {formatCurrency(asset.cost, currency)}
                     </TableCell>
                 </TableRow>
                 ))}

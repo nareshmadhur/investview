@@ -6,7 +6,6 @@ import Link from 'next/link';
 import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getStockPrice } from '@/app/admin/actions';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,6 @@ import PerformanceTable from '@/components/investview/performance-table';
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -86,31 +84,7 @@ export default function Home() {
             });
           }
           const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
-          let initialPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency, result.realizedProfit);
-          setPortfolio(initialPortfolio);
-          setIsParsing(false);
-          
-          // Now fetch live prices
-          setIsFetchingPrices(true);
-          const assetsWithLivePrice = await Promise.all(
-            initialPortfolio.assets.map(async (asset) => {
-                // For Indian stocks from Groww, assume .BSE, for others, use asset name directly.
-                const symbol = csvTemplate === 'groww' ? `${asset.asset}.BSE` : asset.asset;
-                const priceResponse = await getStockPrice(symbol);
-                if (priceResponse.price) {
-                  return { ...asset, currentPrice: priceResponse.price };
-                }
-                // If API fails, keep the original price from CSV as fallback and notify user
-                toast({
-                    variant: "destructive",
-                    title: `Could not fetch price for ${asset.asset}`,
-                    description: priceResponse.error || "The API may have rate limits or the symbol may not be supported.",
-                });
-                return { ...asset, currentPrice: asset.purchasePrice }; // Explicitly fall back to purchase price
-            })
-          );
-          
-          const finalPortfolio = { ...initialPortfolio, assets: assetsWithLivePrice };
+          let finalPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency, result.realizedProfit);
           setPortfolio(finalPortfolio);
           localStorage.setItem('portfolioData', JSON.stringify(finalPortfolio));
 
@@ -126,7 +100,6 @@ export default function Home() {
           localStorage.removeItem('portfolioData');
         } finally {
           setIsParsing(false);
-          setIsFetchingPrices(false);
         }
       };
       reader.readAsText(file);
@@ -172,8 +145,8 @@ export default function Home() {
 
   const downloadSampleCsv = () => {
     const csvContent = "Asset,Quantity,PurchasePrice,CurrentPrice,AssetType,Date\n" +
-      "AAPL,10,150,210,Stock,2023-01-15\n" +
-      "MSFT,15,300,440,Stock,2023-04-05\n";
+      "AAPL,10,150,150,Stock,2023-01-15\n" +
+      "MSFT,15,300,300,Stock,2023-04-05\n";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -200,7 +173,6 @@ export default function Home() {
     return portfolio.assets.reduce((acc, asset) => acc + (asset.quantity * asset.currentPrice), 0);
   }, [portfolio]);
 
-  const isLoading = isParsing || isFetchingPrices;
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
@@ -240,7 +212,7 @@ export default function Home() {
                <label htmlFor="csv-upload" className="flex-grow w-full">
                   <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
                     <div>
-                      {isLoading ? (
+                      {isParsing ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <FileText className="mr-2 h-4 w-4" />
@@ -255,7 +227,7 @@ export default function Home() {
                   accept=".csv"
                   onChange={handleFileChange}
                   className="sr-only"
-                  disabled={isLoading}
+                  disabled={isParsing}
                 />
               <Button onClick={downloadSampleCsv} variant="secondary" className="w-full sm:w-auto" disabled={csvTemplate !== 'default'}>
                 <Download className="mr-2 h-4 w-4" />
@@ -264,16 +236,16 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {isLoading && (
+          {isParsing && (
              <div className="flex justify-center items-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-4 text-muted-foreground">
-                    {isParsing ? 'Processing your portfolio...' : 'Fetching live market prices...'}
+                    Processing your portfolio...
                 </p>
              </div>
           )}
 
-          {portfolio && !isLoading && (
+          {portfolio && !isParsing && (
             <>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                  <KpiCard 
@@ -286,13 +258,13 @@ export default function Home() {
                   tooltipText="The total profit or loss from all completed sales."
                 />
                  <KpiCard 
-                  title="Total Current Value" 
-                  value={totalCurrentValue} 
+                  title="Total Invested Value" 
+                  value={portfolio.totalCost} 
                   format="currency" 
                   icon={CircleDollarSign} 
                   currency={portfolio.currency}
                   fractionDigits={2}
-                  tooltipText="The current market value of all your holdings."
+                  tooltipText="The total cost basis of your current holdings."
                 />
                 <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
                 <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />
@@ -329,7 +301,7 @@ export default function Home() {
             </>
           )}
 
-          {!portfolio && !isLoading &&
+          {!portfolio && !isParsing &&
             <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
               <h3 className="text-lg font-semibold">Welcome to InvestView</h3>
               <p>Upload your portfolio CSV to visualize your investments.</p>
@@ -343,5 +315,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

@@ -30,7 +30,7 @@ const parseDefault = (lines: string[]): ParseResult => {
   const assets: Asset[] = [];
   const transactions: Transaction[] = [];
 
-  const requiredHeaders = ['Asset', 'Quantity', 'PurchasePrice', 'CurrentPrice', 'AssetType'];
+  const requiredHeaders = ['Asset', 'Quantity', 'PurchasePrice', 'AssetType'];
   const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
   if (missingHeaders.length > 0) {
     const error = `Invalid CSV headers. Missing required headers: ${missingHeaders.join(', ')}`;
@@ -41,7 +41,6 @@ const parseDefault = (lines: string[]): ParseResult => {
   const assetIndex = headers.indexOf('Asset');
   const quantityIndex = headers.indexOf('Quantity');
   const purchasePriceIndex = headers.indexOf('PurchasePrice');
-  const currentPriceIndex = headers.indexOf('CurrentPrice');
   const assetTypeIndex = headers.indexOf('AssetType');
   const dateIndex = headers.indexOf('Date');
 
@@ -71,11 +70,10 @@ const parseDefault = (lines: string[]): ParseResult => {
 
     const quantity = parseFloat(data[quantityIndex]);
     const purchasePrice = parseFloat(data[purchasePriceIndex]);
-    const currentPrice = parseFloat(data[currentPriceIndex]);
     const date = dateIndex !== -1 && data[dateIndex] ? new Date(data[dateIndex].trim()) : new Date();
 
 
-    if (isNaN(quantity) || isNaN(purchasePrice) || isNaN(currentPrice)) {
+    if (isNaN(quantity) || isNaN(purchasePrice)) {
       assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid number format in row.`, result: 'Skipped' });
       continue;
     }
@@ -84,7 +82,7 @@ const parseDefault = (lines: string[]): ParseResult => {
       asset: assetName,
       quantity,
       purchasePrice,
-      currentPrice,
+      currentPrice: purchasePrice, // Initialize currentPrice with purchasePrice
       assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
     });
     
@@ -267,3 +265,5 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default', gro
       return parseDefault(lines);
   }
 };
+
+    

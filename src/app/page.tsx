@@ -6,13 +6,15 @@ import Link from 'next/link';
 import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
+import { getYahooFinancePrice } from './admin/actions';
+
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash, Settings, CircleDollarSign } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash, Settings, CircleDollarSign, Wallet } from 'lucide-react';
 
 import KpiCard from '@/components/investview/kpi-card';
 import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
@@ -35,20 +37,15 @@ export default function Home() {
           if (key === 'transactions' && Array.isArray(value)) {
             return value.map((t: any) => ({ ...t, date: new Date(t.date)}));
           }
+           if (key === 'assets' && Array.isArray(value)) {
+            return value.map((a: any) => ({ ...a, currentPrice: a.currentPrice || a.purchasePrice }));
+          }
           return value;
         });
 
-        if (!parsedData.transactions) {
-          parsedData.transactions = [];
-        }
-        
-        if (!parsedData.currency) {
-            parsedData.currency = 'USD';
-        }
-        
-        if (parsedData.realizedProfit === undefined) {
-          parsedData.realizedProfit = 0;
-        }
+        if (!parsedData.transactions) parsedData.transactions = [];
+        if (!parsedData.currency) parsedData.currency = 'USD';
+        if (parsedData.realizedProfit === undefined) parsedData.realizedProfit = 0;
 
         setPortfolio(parsedData);
         setFileName("loaded_from_cache.csv");
@@ -59,6 +56,25 @@ export default function Home() {
     }
   }, []);
 
+  const fetchLivePrices = async (assets: Asset[]): Promise<Asset[]> => {
+    const updatedAssets = [...assets];
+    for (let i = 0; i < updatedAssets.length; i++) {
+        const asset = updatedAssets[i];
+        const result = await getYahooFinancePrice(asset.asset);
+        if (result.price) {
+            asset.currentPrice = result.price;
+        } else {
+             toast({
+                variant: 'destructive',
+                title: `Price Fetch Failed for ${asset.asset}`,
+                description: result.error || 'Could not fetch the latest market price.',
+                duration: 4000,
+            });
+        }
+    }
+    return updatedAssets;
+  }
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -66,27 +82,32 @@ export default function Home() {
       setFileName(file.name);
       setPortfolio(null);
       setAiSuggestions(null);
+      toast({ title: 'Processing File', description: 'Parsing your CSV and fetching live market data...' });
       const reader = new FileReader();
+      
       reader.onload = async (e) => {
         try {
           const text = e.target?.result as string;
           const result: ParseResult = parseCSV(text, csvTemplate);
           
-          if (result.error) {
-            throw new Error(result.error);
-          }
-
+          if (result.error) throw new Error(result.error);
           if (result.assets.length === 0 && result.transactions.length === 0) {
              toast({
               variant: "default",
-              title: "Parsing successful, but no transaction data found",
+              title: "Parsing successful, no transaction data found",
               description: "The file was parsed, but no valid transaction rows were found.",
             });
           }
+
           const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
-          let finalPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency, result.realizedProfit);
+          
+          // Fetch live prices
+          const assetsWithLivePrices = await fetchLivePrices(result.assets);
+
+          let finalPortfolio = calculatePortfolioMetrics(assetsWithLivePrices, result.transactions, currency, result.realizedProfit);
           setPortfolio(finalPortfolio);
           localStorage.setItem('portfolioData', JSON.stringify(finalPortfolio));
+          toast({ title: 'Portfolio Ready!', description: 'Your dashboard has been updated with the latest data.' });
 
         } catch (error) {
           console.error(error);
@@ -144,9 +165,9 @@ export default function Home() {
   };
 
   const downloadSampleCsv = () => {
-    const csvContent = "Asset,Quantity,PurchasePrice,CurrentPrice,AssetType,Date\n" +
-      "AAPL,10,150,150,Stock,2023-01-15\n" +
-      "MSFT,15,300,300,Stock,2023-04-05\n";
+    const csvContent = "Asset,Quantity,PurchasePrice,AssetType,Date\n" +
+      "AAPL,10,150,Stock,2023-01-15\n" +
+      "MSFT,15,300,Stock,2023-04-05\n";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -266,7 +287,15 @@ export default function Home() {
                   fractionDigits={2}
                   tooltipText="The total cost basis of your current holdings."
                 />
-                <KpiCard title="Current Holdings" value={uniqueAssetsCount} icon={Hash} />
+                <KpiCard 
+                  title="Total Current Value" 
+                  value={totalCurrentValue} 
+                  format="currency" 
+                  icon={Wallet} 
+                  currency={portfolio.currency}
+                  fractionDigits={2}
+                  tooltipText="The total current market value of your holdings."
+                />
                 <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} />
               </div>
 
@@ -315,3 +344,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

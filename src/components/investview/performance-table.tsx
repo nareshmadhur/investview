@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { Asset } from '@/types';
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits = 2) => {
   return new Intl.NumberFormat('en-US', { 
@@ -23,7 +24,10 @@ const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits =
 export default function PerformanceTable({ assets, currency }: { assets: Asset[], currency: 'USD' | 'INR' }) {
   const assetsWithValues = assets.map(asset => {
     const cost = asset.quantity * asset.purchasePrice;
-    return { ...asset, cost };
+    const currentValue = asset.quantity * asset.currentPrice;
+    const dayPL = currentValue - cost;
+    const dayPLPercent = cost > 0 ? (dayPL / cost) * 100 : 0;
+    return { ...asset, cost, currentValue, dayPL, dayPLPercent };
   }).sort((a, b) => b.cost - a.cost);
 
   const getBadgeVariant = (assetType: string) => {
@@ -46,25 +50,32 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
             <Table>
             <TableHeader>
                 <TableRow>
-                <TableHead>Asset</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead className="text-right">Avg. Cost</TableHead>
-                <TableHead className="text-right">Total Cost</TableHead>
+                    <TableHead>Asset</TableHead>
+                    <TableHead className="text-right">Avg. Cost</TableHead>
+                    <TableHead className="text-right">Current Price</TableHead>
+                    <TableHead className="text-right">Current Value</TableHead>
+                    <TableHead className="text-right">Day's P/L</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {assetsWithValues.map((asset, index) => (
                 <TableRow key={`${asset.asset}-${index}`}>
                     <TableCell>
-                    <div className="font-medium">{asset.asset}</div>
-                    <Badge variant={getBadgeVariant(asset.assetType)} className="mt-1">{asset.assetType}</Badge>
+                        <div className="font-medium">{asset.asset}</div>
+                        <div className="text-xs text-muted-foreground">{asset.quantity.toFixed(4)} shares</div>
                     </TableCell>
-                    <TableCell>{asset.quantity.toFixed(4)}</TableCell>
                     <TableCell className="text-right font-mono">
                         {formatCurrency(asset.purchasePrice, currency)}
                     </TableCell>
-                     <TableCell className="text-right font-bold">
-                        {formatCurrency(asset.cost, currency)}
+                    <TableCell className="text-right font-mono">
+                        {formatCurrency(asset.currentPrice, currency)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                        {formatCurrency(asset.currentValue, currency)}
+                    </TableCell>
+                    <TableCell className={cn("text-right font-mono", asset.dayPL > 0 ? 'text-green-600' : 'text-red-600')}>
+                        <div>{formatCurrency(asset.dayPL, currency)}</div>
+                        <div className="text-xs">({asset.dayPLPercent.toFixed(2)}%)</div>
                     </TableCell>
                 </TableRow>
                 ))}
@@ -75,3 +86,5 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
     </Card>
   );
 }
+
+    

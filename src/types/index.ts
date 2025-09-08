@@ -13,7 +13,7 @@ export type Asset = {
   asset: string;
   quantity: number;
   purchasePrice: number; // Average purchase price
-  currentPrice: number; // Placeholder for now
+  currentPrice: number;
   assetType: 'Stock' | 'Cryptocurrency' | 'Commodity';
 };
 
@@ -51,3 +51,5 @@ export type ParsingLogs = {
   assetLogs: Record<string, AssetLog>;
   summary: string[];
 }
+
+    

@@ -4,8 +4,7 @@
 import { useState } from 'react';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getStockPrice, scrapeYahooFinancePrice, getLatestNseBhavcopy, type ApiResponse, type BhavcopyResult } from './actions';
-import type { BhavcopyRecord } from '@/services/market-data';
+import { getEodhdLastDayData, type EodhdRecord, type EodhdResult } from './actions';
 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,9 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon, ExternalLink, Bot, Code, Database, Download } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, TableIcon, Database, Download } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) {
     if (!transactions || transactions.length === 0) {
@@ -37,7 +35,7 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
     const totalSellQuantity = sells.reduce((acc, t) => acc + t.quantity, 0);
     const totalSellValue = sells.reduce((acc, t) => acc + t.quantity * t.price, 0);
     
-    const avgBuyPrice = totalBuyQuantity > 0 ? totalBuyValue / totalBuyQuantity : 0;
+    const avgBuyPrice = totalBuyQuantity > 0 ? totalValue / totalBuyQuantity : 0;
     const realizedProfit = totalSellValue - (avgBuyPrice * totalSellQuantity);
     
     return (
@@ -123,131 +121,26 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
     );
 };
 
-function StockPriceFetcher() {
-    const [symbol, setSymbol] = useState('RELIANCE.BSE');
+function EodhdDataDownloader() {
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<ApiResponse | null>(null);
-    const [apiSource, setApiSource] = useState<'alphavantage' | 'yahoo'>('alphavantage');
+    const [result, setResult] = useState<EodhdResult | null>(null);
+    const [eodData, setEodData] = useState<EodhdRecord[] | null>(null);
     const { toast } = useToast();
 
-    const handleFetch = async () => {
-        if (!symbol) {
-            toast({ variant: 'destructive', title: 'Symbol is required' });
-            return;
-        }
+    const handleFetchEodData = async (exchange: 'NSE' | 'BSE') => {
         setIsLoading(true);
         setResult(null);
+        setEodData(null);
         try {
-            let res: ApiResponse;
-            if (apiSource === 'alphavantage') {
-                res = await getStockPrice(symbol);
-            } else {
-                res = await scrapeYahooFinancePrice(symbol);
-            }
+            const res = await getEodhdLastDayData(exchange);
             setResult(res);
 
             if (res.error) {
-                toast({ variant: 'destructive', title: 'API Error', description: res.error });
-            }
-        } catch (e) {
-            const error = e instanceof Error ? e.message : "An unknown error occurred.";
-            setResult({ error });
-            toast({ variant: 'destructive', title: 'Request Failed', description: error });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    const sourceConfig = {
-      alphavantage: { title: "Alpha Vantage API", icon: Bot, placeholder: "e.g. RELIANCE.BSE, IBM" },
-      yahoo: { title: "Yahoo Finance (Scrape)", icon: Code, placeholder: "e.g. RELIANCE.NS, AAPL" }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Search className="w-6 h-6" />
-                    Live Price Fetcher
-                </CardTitle>
-                <CardDescription>
-                    Select a data source, enter a stock symbol, and fetch the latest traded price. This is a testing utility.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <div className="mb-6">
-                    <Label className="mb-2 block">Data Source</Label>
-                    <RadioGroup defaultValue="alphavantage" onValueChange={(value) => setApiSource(value as 'alphavantage' | 'yahoo')} className="flex items-center gap-6">
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="alphavantage" id="r1" />
-                            <Label htmlFor="r1" className="flex items-center gap-2 cursor-pointer"><Bot/> Alpha Vantage API</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="yahoo" id="r2" />
-                            <Label htmlFor="r2" className="flex items-center gap-2 cursor-pointer"><Code/> Yahoo Finance (Scrape)</Label>
-                        </div>
-                    </RadioGroup>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <div className="grid gap-1.5 flex-grow w-full">
-                        <Label htmlFor="symbol-input">Stock Symbol</Label>
-                        <Input
-                            id="symbol-input"
-                            value={symbol}
-                            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                            placeholder={sourceConfig[apiSource].placeholder}
-                        />
-                    </div>
-                    <Button onClick={handleFetch} disabled={isLoading} className="w-full sm:w-auto mt-4 sm:mt-0 self-end">
-                        {isLoading ? <Loader2 className="animate-spin" /> : <ExternalLink />}
-                        Fetch Price
-                    </Button>
-                </div>
-
-                {result && (
-                    <div className="mt-6 grid gap-4">
-                        {result.price !== undefined && (
-                            <div className="p-4 rounded-md bg-accent border">
-                                <h4 className="font-semibold text-accent-foreground">Last Traded Price</h4>
-                                <p className="text-2xl font-bold text-primary">{result.price.toFixed(2)}</p>
-                            </div>
-                        )}
-                         {result.rawData && (
-                            <div>
-                               <h4 className="font-semibold mb-2">Raw Response</h4>
-                               <ScrollArea className="h-64 w-full rounded-md border bg-muted">
-                                  <pre className="p-4 text-xs font-mono">{typeof result.rawData === 'string' ? result.rawData : JSON.stringify(result.rawData, null, 2)}</pre>
-                                </ScrollArea>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-function BhavcopyDownloader() {
-    const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<BhavcopyResult | null>(null);
-    const [bhavcopyData, setBhavcopyData] = useState<BhavcopyRecord[] | null>(null);
-    const { toast } = useToast();
-
-    const handleFetchBhavcopy = async () => {
-        setIsLoading(true);
-        setResult(null);
-        setBhavcopyData(null);
-        try {
-            const res = await getLatestNseBhavcopy();
-            setResult(res);
-
-            if (res.error) {
-                toast({ variant: 'destructive', title: 'Bhavcopy Error', description: res.error, duration: 5000 });
+                toast({ variant: 'destructive', title: 'EODHD API Error', description: res.error, duration: 5000 });
             }
             if (res.data) {
-                toast({ variant: 'default', title: 'Bhavcopy Loaded', description: `Successfully parsed ${res.fileName}.` });
-                setBhavcopyData(res.data);
+                toast({ variant: 'default', title: 'EODHD Data Loaded', description: `Successfully fetched ${res.data.length} records for ${exchange}.` });
+                setEodData(res.data);
             }
 
         } catch (e) {
@@ -264,37 +157,44 @@ function BhavcopyDownloader() {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Database className="w-6 h-6" />
-                    Market Data Downloader
+                    EODHD Market Data
                 </CardTitle>
                 <CardDescription>
-                   Fetch the latest end-of-day data (Bhavcopy) from the NSE. This may take a moment as it involves downloading and unzipping a file.
+                   Fetch the latest bulk end-of-day data from EODHD for an entire exchange. The result is cached for 1 hour.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <Button onClick={handleFetchBhavcopy} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    Fetch Latest NSE Bhavcopy
-                </Button>
-                {bhavcopyData && (
+                <div className="flex items-center gap-4">
+                    <Button onClick={() => handleFetchEodData('NSE')} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Fetch Latest NSE Data
+                    </Button>
+                     <Button onClick={() => handleFetchEodData('BSE')} disabled={isLoading} variant="secondary">
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Fetch Latest BSE Data
+                    </Button>
+                </div>
+
+                {eodData && (
                     <div className="mt-6">
-                        <h4 className="font-semibold mb-2">Parsed Bhavcopy Data (First 20 records)</h4>
+                        <h4 className="font-semibold mb-2">Parsed EOD Data (First 20 records)</h4>
                         <ScrollArea className="h-96 w-full rounded-md border">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Symbol</TableHead>
-                                        <TableHead>Series</TableHead>
+                                        <TableHead>Code</TableHead>
                                         <TableHead className="text-right">Close</TableHead>
                                         <TableHead className="text-right">Prev. Close</TableHead>
+                                        <TableHead className="text-right">Change (%)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {bhavcopyData.slice(0, 20).map((record) => (
-                                        <TableRow key={record.SYMBOL}>
-                                            <TableCell className="font-medium">{record.SYMBOL}</TableCell>
-                                            <TableCell>{record.SERIES}</TableCell>
-                                            <TableCell className="text-right font-mono">{record.CLOSE.toFixed(2)}</TableCell>
-                                            <TableCell className="text-right font-mono">{record.PREVCLOSE.toFixed(2)}</TableCell>
+                                    {eodData.slice(0, 20).map((record) => (
+                                        <TableRow key={record.code}>
+                                            <TableCell className="font-medium">{record.code}</TableCell>
+                                            <TableCell className="text-right font-mono">{record.close.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right font-mono">{record.previousClose.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right font-mono">{record.change_p.toFixed(2)}%</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -302,6 +202,12 @@ function BhavcopyDownloader() {
                         </ScrollArea>
                     </div>
                 )}
+                 {result && result.error && (
+                     <div className="mt-4 text-destructive p-4 bg-destructive/10 rounded-md border border-destructive/20">
+                         <p className="font-semibold">An error occurred:</p>
+                         <p className="text-sm">{result.error}</p>
+                    </div>
+                 )}
             </CardContent>
         </Card>
     );
@@ -391,9 +297,7 @@ export default function AdminPage() {
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto grid gap-8">
           
-          <BhavcopyDownloader />
-
-          <StockPriceFetcher />
+          <EodhdDataDownloader />
 
           <Card>
             <CardHeader>

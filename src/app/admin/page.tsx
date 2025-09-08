@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) {
@@ -38,6 +38,10 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
     const avgBuyPrice = totalBuyQuantity > 0 ? totalBuyValue / totalBuyQuantity : 0;
     const realizedProfit = totalSellValue - (avgBuyPrice * totalSellQuantity);
     
+    const currentValue = asset.quantity * asset.currentPrice;
+    const unrealizedPL = currentValue - (asset.quantity * asset.purchasePrice);
+
+
     return (
         <ScrollArea className="h-[60vh] w-full rounded-md border p-4">
             <div className="grid gap-6">
@@ -101,16 +105,31 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
                                     <TableCell className="text-right font-mono">{formatCurrency(totalSellValue)}</TableCell>
                                 </TableRow>
                                 <TableRow>
+                                    <TableCell className="font-medium text-primary">Realized P/L (From Sales)</TableCell>
+                                    <TableCell className="text-right font-mono text-primary font-bold">{formatCurrency(realizedProfit)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell colSpan={2} className="h-4"></TableCell>
+                                </TableRow>
+                                <TableRow className="bg-muted/50">
                                     <TableCell className="font-medium">Net Quantity (Holdings)</TableCell>
                                     <TableCell className="text-right font-mono">{asset.quantity.toFixed(4)}</TableCell>
                                 </TableRow>
-                                <TableRow>
+                                <TableRow className="bg-muted/50">
                                     <TableCell className="font-medium">Net Cost of Holdings</TableCell>
                                     <TableCell className="text-right font-mono">{formatCurrency(asset.purchasePrice * asset.quantity)}</TableCell>
                                 </TableRow>
-                                <TableRow>
-                                    <TableCell className="font-medium text-primary">Realized Profit for this Asset</TableCell>
-                                    <TableCell className="text-right font-mono text-primary font-bold">{formatCurrency(realizedProfit)}</TableCell>
+                                <TableRow className="bg-muted/50">
+                                    <TableCell className="font-medium flex items-center gap-2"><Database className="w-4 h-4 text-primary"/>Current Market Price</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(asset.currentPrice)}</TableCell>
+                                </TableRow>
+                                <TableRow className="bg-muted/50">
+                                    <TableCell className="font-medium flex items-center gap-2"><Wallet className="w-4 h-4 text-primary"/>Current Market Value</TableCell>
+                                    <TableCell className="text-right font-mono font-bold">{formatCurrency(currentValue)}</TableCell>
+                                </TableRow>
+                                 <TableRow className="bg-muted/50">
+                                    <TableCell className="font-medium flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary"/>Unrealized P/L</TableCell>
+                                    <TableCell className="text-right font-mono font-bold">{formatCurrency(unrealizedPL)}</TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>
@@ -212,6 +231,27 @@ export default function AdminPage() {
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const { toast } = useToast();
 
+  const fetchLivePrices = async (assets: Asset[]): Promise<Asset[]> => {
+    toast({ title: 'Fetching Live Prices', description: 'Getting the latest market data for your assets...' });
+    const updatedAssets = [...assets];
+    for (let i = 0; i < updatedAssets.length; i++) {
+        const asset = updatedAssets[i];
+        const result = await getYahooFinancePrice(asset.asset);
+        if (result.price) {
+            asset.currentPrice = result.price;
+        } else {
+             toast({
+                variant: 'destructive',
+                title: `Price Fetch Failed for ${asset.asset}`,
+                description: result.error || 'Could not fetch the latest market price.',
+                duration: 4000,
+            });
+        }
+    }
+    toast({ title: 'Live Prices Updated', description: 'Market data has been refreshed.'});
+    return updatedAssets;
+  }
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -221,9 +261,10 @@ export default function AdminPage() {
       setParsingLogs(null);
       const selectedCurrency = csvTemplate === 'groww' ? 'INR' : 'USD';
       setCurrency(selectedCurrency);
+      toast({ title: 'Processing File', description: 'Parsing your CSV and fetching live market data...' });
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const text = e.target?.result as string;
           const result: ParseResult = parseCSV(text, csvTemplate, csvTemplate === 'groww' ? growwSchema : undefined);
@@ -249,7 +290,9 @@ export default function AdminPage() {
             });
             setAssets([]);
           } else {
-            setAssets(result.assets);
+            const assetsWithLivePrices = await fetchLivePrices(result.assets);
+            setAssets(assetsWithLivePrices);
+             toast({ title: 'Portfolio Ready!', description: 'Your data has been processed and is ready to view.' });
           }
         } catch (error) {
           console.error(error);
@@ -292,7 +335,7 @@ export default function AdminPage() {
                 Aggregated Data Viewer
               </CardTitle>
               <CardDescription>
-                Upload a CSV to see the aggregated, parsed data. Click on an asset in the table below to see its detailed transaction history.
+                Upload a CSV to see the aggregated, parsed data. Current market prices will be fetched automatically. Click on an asset in the table below to see its detailed transaction history and current valuation.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-4">
@@ -351,7 +394,7 @@ export default function AdminPage() {
           {isParsing && (
             <div className="flex justify-center items-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Parsing data...</p>
+              <p className="ml-4 text-muted-foreground">Parsing data & fetching prices...</p>
             </div>
           )}
 

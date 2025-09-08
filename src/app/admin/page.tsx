@@ -16,17 +16,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({
     asset,
     transactions,
     currency,
+    isPriceLive
 }: {
     asset: Asset,
     transactions: Transaction[],
     currency: 'USD' | 'INR',
+    isPriceLive: boolean
 }) {
     if (!transactions) {
         return <p className="text-sm text-muted-foreground">No transaction data available for this asset.</p>;
@@ -127,7 +129,10 @@ function AssetLogsView({
                                     <TableCell className="text-right font-mono">{formatCurrency(avgBuyPrice * asset.quantity)}</TableCell>
                                 </TableRow>
                                 <TableRow className="bg-muted/50">
-                                    <TableCell className="font-medium flex items-center gap-2"><Database className="w-4 h-4 text-primary"/>Current Market Price</TableCell>
+                                     <TableCell className="font-medium flex items-center gap-2">
+                                        {isPriceLive ? <CheckCircle className="w-4 h-4 text-green-500"/> : <AlertTriangle className="w-4 h-4 text-yellow-500" />}
+                                        Current Market Price ({isPriceLive ? 'Live' : 'Fallback'})
+                                    </TableCell>
                                     <TableCell className="text-right font-mono">{formatCurrency(asset.currentPrice)}</TableCell>
                                 </TableRow>
                                 <TableRow className="bg-muted/50">
@@ -236,7 +241,7 @@ export default function AdminPage() {
   });
   const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
-  const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[]} | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[], isPriceLive: boolean} | null>(null);
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const { toast } = useToast();
 
@@ -301,31 +306,35 @@ export default function AdminPage() {
   
   const handleViewTransactions = async (asset: Asset) => {
     setIsFetchingPrice(true);
-    toast({ title: 'Fetching Live Price...', description: `Getting latest market data for ${asset.asset}`});
+    toast({ title: 'Fetching Live Price...', description: `Getting latest market data for ${asset.displayName}`});
     const result = await getYahooFinancePrice(asset.asset);
     
     let updatedAsset = { ...asset };
+    let isPriceLive = false;
 
     if (result.price) {
         updatedAsset.currentPrice = result.price;
-        toast({ title: 'Price Updated!', description: `Successfully fetched price for ${asset.asset}`});
+        isPriceLive = true;
+        toast({ title: 'Price Updated!', description: `Successfully fetched price for ${asset.displayName}`});
     } else {
          toast({
             variant: 'destructive',
-            title: `Price Fetch Failed for ${asset.asset}`,
+            title: `Price Fetch Failed for ${asset.displayName}`,
             description: (
-              <div>
-                <p>Query: {asset.asset}</p>
-                <p>{result.error || 'Could not fetch the latest market price.'}</p>
+              <div className="flex flex-col gap-2">
+                <p>Could not fetch the latest market price. Using purchase price as a fallback.</p>
+                <p className="font-mono text-xs">Query: {`https://query1.finance.yahoo.com/v8/finance/chart/${asset.asset}?interval=1d`}</p>
+                <p className="font-mono text-xs">Error: {result.error}</p>
               </div>
             ),
-            duration: 6000,
+            duration: 8000,
         });
     }
 
     setSelectedAsset({
       asset: updatedAsset,
-      transactions: parsingLogs?.assetLogs?.[asset.asset]?.transactions || []
+      transactions: parsingLogs?.assetLogs?.[asset.asset]?.transactions || [],
+      isPriceLive: isPriceLive
     });
     setIsFetchingPrice(false);
   }
@@ -429,7 +438,8 @@ export default function AdminPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Asset</TableHead>
+                        <TableHead>Asset Name</TableHead>
+                        <TableHead>Yahoo Query Ticker</TableHead>
                         <TableHead>Net Quantity</TableHead>
                         <TableHead>Avg. Purchase Price</TableHead>
                         <TableHead>Asset Type</TableHead>
@@ -439,7 +449,8 @@ export default function AdminPage() {
                     <TableBody>
                       {assets.map((asset, index) => (
                         <TableRow key={`${asset.asset}-${index}`}>
-                          <TableCell className="font-medium">{asset.asset}</TableCell>
+                          <TableCell className="font-medium">{asset.displayName}</TableCell>
+                          <TableCell className="font-mono text-xs">{asset.asset}</TableCell>
                           <TableCell>{asset.quantity.toFixed(4)}</TableCell>
                           <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
                           <TableCell>{asset.assetType}</TableCell>
@@ -466,13 +477,14 @@ export default function AdminPage() {
                 {selectedAsset && (
                   <>
                   <DialogHeader>
-                    <DialogTitle>Transaction Summary for: {selectedAsset.asset.asset}</DialogTitle>
+                    <DialogTitle>Transaction Summary for: {selectedAsset.asset.displayName}</DialogTitle>
                   </DialogHeader>
                   <div className="py-4">
                     <AssetLogsView 
                       asset={selectedAsset.asset}
                       transactions={selectedAsset.transactions} 
                       currency={currency}
+                      isPriceLive={selectedAsset.isPriceLive}
                     />
                   </div>
                   </>

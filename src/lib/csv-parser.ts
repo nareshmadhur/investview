@@ -43,7 +43,7 @@ const parseDefault = (lines: string[]): ParseResult => {
   const assetTypeIndex = headers.indexOf('AssetType');
   const dateIndex = headers.indexOf('Date');
   
-  const holdings: Record<string, { quantity: number; totalCost: number; assetType: Asset['assetType'] }> = {};
+  const holdings: Record<string, { displayName: string, quantity: number; totalCost: number; assetType: Asset['assetType'] }> = {};
   const allTransactions: Transaction[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -82,10 +82,9 @@ const parseDefault = (lines: string[]): ParseResult => {
     }
     
     if (!holdings[assetName]) {
-        holdings[assetName] = { quantity: 0, totalCost: 0, assetType };
+        holdings[assetName] = { displayName: symbol, quantity: 0, totalCost: 0, assetType };
     }
     
-    // For default, we assume each row is a simple holding, not a transaction history
     holdings[assetName].quantity += quantity;
     holdings[assetName].totalCost += quantity * purchasePrice;
 
@@ -100,9 +99,10 @@ const parseDefault = (lines: string[]): ParseResult => {
 
   const assets: Asset[] = Object.entries(holdings).map(([assetName, holding]) => ({
       asset: assetName,
+      displayName: holding.displayName,
       quantity: holding.quantity,
       purchasePrice: holding.totalCost / holding.quantity,
-      currentPrice: holding.totalCost / holding.quantity, // Default to purchase price
+      currentPrice: holding.totalCost / holding.quantity, 
       assetType: holding.assetType
   }));
 
@@ -170,7 +170,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     const dateIndex = headers.indexOf(mapping.date);
     const statusIndex = headers.indexOf(mapping.status);
 
-    const holdings: Record<string, { quantity: number; totalCost: number }> = {};
+    const holdings: Record<string, { displayName: string, quantity: number; totalCost: number }> = {};
     let realizedProfit = 0;
     const transactions: Transaction[] = [];
 
@@ -179,8 +179,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         if (!line.trim()) continue;
 
         const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
-        const symbol = data[assetIndex];
-        const assetName = `${symbol}.NSE`; // Assume NSE for Groww stocks
+        const displayName = data[assetIndex];
+        const assetName = `${displayName}.NSE`; 
 
         if (!logs.assetLogs[assetName]) {
           logs.assetLogs[assetName] = { logs: [], transactions: [] };
@@ -215,7 +215,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         logs.assetLogs[assetName].transactions.push(transaction);
 
         if (!holdings[assetName]) {
-            holdings[assetName] = { quantity: 0, totalCost: 0 };
+            holdings[assetName] = { displayName, quantity: 0, totalCost: 0 };
         }
         const holding = holdings[assetName];
 
@@ -228,15 +228,13 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
                 const costOfSharesSold = avgPriceBeforeSell * quantity;
                 const profitOnThisSale = totalValue - costOfSharesSold;
                 realizedProfit += profitOnThisSale;
-
-                // Adjust cost basis
+                
                 const costRatio = quantity / holding.quantity;
                 holding.totalCost = holding.totalCost * (1 - costRatio);
             }
 
             holding.quantity -= quantity;
             
-            // To prevent floating point issues, if quantity is near zero, set cost to zero.
             if (Math.abs(holding.quantity) < 0.00001) {
                 holding.quantity = 0;
                 holding.totalCost = 0;
@@ -248,9 +246,13 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         .filter(([, holding]) => holding.quantity > 0.00001)
         .map(([assetName, holding]) => {
             const averagePrice = holding.quantity > 0 ? holding.totalCost / holding.quantity : 0;
-            const finalAsset = {
-                asset: assetName, quantity: holding.quantity, purchasePrice: averagePrice,
-                currentPrice: averagePrice, assetType: 'Stock' as 'Stock',
+            const finalAsset: Asset = {
+                asset: assetName,
+                displayName: holding.displayName,
+                quantity: holding.quantity,
+                purchasePrice: averagePrice,
+                currentPrice: averagePrice,
+                assetType: 'Stock',
             };
             return finalAsset;
         });
@@ -274,5 +276,3 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default', gro
       return parseDefault(lines);
   }
 };
-
-    

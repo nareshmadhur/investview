@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export type Transaction = {
@@ -10,7 +11,8 @@ export type Transaction = {
 };
 
 export type Asset = {
-  asset: string;
+  asset: string; // The queryable ticker for APIs, e.g. "RELIANCE.NS"
+  displayName: string; // The name from the CSV, e.g. "Reliance Industries Ltd"
   quantity: number;
   purchasePrice: number; // Average purchase price
   currentPrice: number;
@@ -51,5 +53,3 @@ export type ParsingLogs = {
   assetLogs: Record<string, AssetLog>;
   summary: string[];
 }
-
-    

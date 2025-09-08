@@ -1,31 +1,9 @@
 
 'use server';
 
-import { z } from 'zod';
+import type { EodhdRecord, EodhdResult } from '@/types';
+import { eodhdResponseSchema } from '@/types';
 
-// Zod schema for the EODHD bulk last day record
-export const eodhdRecordSchema = z.object({
-  code: z.string(),
-  timestamp: z.number(),
-  gmtoffset: z.number(),
-  open: z.number(),
-  high: z.number(),
-  low: z.number(),
-  close: z.number(),
-  volume: z.number(),
-  previousClose: z.number(),
-  change: z.number(),
-  change_p: z.number(),
-});
-
-export type EodhdRecord = z.infer<typeof eodhdRecordSchema>;
-
-const eodhdResponseSchema = z.array(eodhdRecordSchema);
-
-export type EodhdResult = {
-    data?: EodhdRecord[];
-    error?: string;
-}
 
 /**
  * Fetches the end-of-day bulk data for a given exchange from EODHD.

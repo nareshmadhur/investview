@@ -1,3 +1,4 @@
+import { z } from 'zod';
 
 export type Transaction = {
   asset: string;
@@ -49,4 +50,28 @@ export type ParsingLogs = {
   setup: string[];
   assetLogs: Record<string, AssetLog>;
   summary: string[];
+}
+
+// Zod schema for the EODHD bulk last day record
+export const eodhdRecordSchema = z.object({
+  code: z.string(),
+  timestamp: z.number(),
+  gmtoffset: z.number(),
+  open: z.number(),
+  high: z.number(),
+  low: z.number(),
+  close: z.number(),
+  volume: z.number(),
+  previousClose: z.number(),
+  change: z.number(),
+  change_p: z.number(),
+});
+
+export const eodhdResponseSchema = z.array(eodhdRecordSchema);
+
+export type EodhdRecord = z.infer<typeof eodhdRecordSchema>;
+
+export type EodhdResult = {
+    data?: EodhdRecord[];
+    error?: string;
 }

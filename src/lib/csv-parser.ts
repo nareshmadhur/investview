@@ -30,7 +30,7 @@ const parseDefault = (lines: string[]): ParseResult => {
   const assets: Asset[] = [];
   const transactions: Transaction[] = [];
 
-  const requiredHeaders = ['Asset', 'Quantity', 'PurchasePrice', 'AssetType'];
+  const requiredHeaders = ['Symbol', 'Exchange', 'Quantity', 'PurchasePrice', 'AssetType'];
   const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
   if (missingHeaders.length > 0) {
     const error = `Invalid CSV headers. Missing required headers: ${missingHeaders.join(', ')}`;
@@ -38,7 +38,8 @@ const parseDefault = (lines: string[]): ParseResult => {
     return { assets: [], transactions: [], error, logs };
   }
 
-  const assetIndex = headers.indexOf('Asset');
+  const symbolIndex = headers.indexOf('Symbol');
+  const exchangeIndex = headers.indexOf('Exchange');
   const quantityIndex = headers.indexOf('Quantity');
   const purchasePriceIndex = headers.indexOf('PurchasePrice');
   const assetTypeIndex = headers.indexOf('AssetType');
@@ -49,7 +50,10 @@ const parseDefault = (lines: string[]): ParseResult => {
     if (!line.trim()) continue;
     
     const data = line.split(',');
-    const assetName = data[assetIndex].trim();
+    const symbol = data[symbolIndex].trim();
+    const exchange = data[exchangeIndex].trim();
+    const assetName = `${symbol}.${exchange}`;
+
     if (!logs.assetLogs[assetName]) {
       logs.assetLogs[assetName] = { logs: [], transactions: [] };
     }
@@ -82,7 +86,7 @@ const parseDefault = (lines: string[]): ParseResult => {
       asset: assetName,
       quantity,
       purchasePrice,
-      currentPrice: purchasePrice, // Initialize currentPrice with purchasePrice
+      currentPrice: purchasePrice,
       assetType: assetType as 'Stock' | 'Cryptocurrency' | 'Commodity',
     });
     
@@ -171,7 +175,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         if (!line.trim()) continue;
 
         const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
-        const assetName = data[assetIndex];
+        const symbol = data[assetIndex];
+        const assetName = `${symbol}.NS`; // Assume NSE for Groww stocks
 
         if (!logs.assetLogs[assetName]) {
           logs.assetLogs[assetName] = { logs: [], transactions: [] };
@@ -265,5 +270,3 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default', gro
       return parseDefault(lines);
   }
 };
-
-    

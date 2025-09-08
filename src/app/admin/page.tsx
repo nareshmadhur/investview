@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -229,28 +229,9 @@ export default function AdminPage() {
   });
   const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
+  const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[]} | null>(null);
+  const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const { toast } = useToast();
-
-  const fetchLivePrices = async (assets: Asset[]): Promise<Asset[]> => {
-    toast({ title: 'Fetching Live Prices', description: 'Getting the latest market data for your assets...' });
-    const updatedAssets = [...assets];
-    for (let i = 0; i < updatedAssets.length; i++) {
-        const asset = updatedAssets[i];
-        const result = await getYahooFinancePrice(asset.asset);
-        if (result.price) {
-            asset.currentPrice = result.price;
-        } else {
-             toast({
-                variant: 'destructive',
-                title: `Price Fetch Failed for ${asset.asset}`,
-                description: result.error || 'Could not fetch the latest market price.',
-                duration: 4000,
-            });
-        }
-    }
-    toast({ title: 'Live Prices Updated', description: 'Market data has been refreshed.'});
-    return updatedAssets;
-  }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -259,9 +240,10 @@ export default function AdminPage() {
       setFileName(file.name);
       setAssets(null);
       setParsingLogs(null);
+      setSelectedAsset(null);
       const selectedCurrency = csvTemplate === 'groww' ? 'INR' : 'USD';
       setCurrency(selectedCurrency);
-      toast({ title: 'Processing File', description: 'Parsing your CSV and fetching live market data...' });
+      toast({ title: 'Processing File', description: 'Parsing your CSV file...' });
 
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -290,9 +272,8 @@ export default function AdminPage() {
             });
             setAssets([]);
           } else {
-            const assetsWithLivePrices = await fetchLivePrices(result.assets);
-            setAssets(assetsWithLivePrices);
-             toast({ title: 'Portfolio Ready!', description: 'Your data has been processed and is ready to view.' });
+            setAssets(result.assets);
+            toast({ title: 'File Processed!', description: 'Your data is ready to be inspected.' });
           }
         } catch (error) {
           console.error(error);
@@ -310,6 +291,33 @@ export default function AdminPage() {
     }
     event.target.value = '';
   };
+  
+  const handleViewTransactions = async (asset: Asset) => {
+    setIsFetchingPrice(true);
+    toast({ title: 'Fetching Live Price...', description: `Getting latest market data for ${asset.asset}`});
+    const result = await getYahooFinancePrice(asset.asset);
+    
+    const updatedAsset = {...asset};
+
+    if (result.price) {
+        updatedAsset.currentPrice = result.price;
+        toast({ title: 'Price Updated!', description: `Successfully fetched price for ${asset.asset}`});
+    } else {
+         toast({
+            variant: 'destructive',
+            title: `Price Fetch Failed for ${asset.asset}`,
+            description: result.error || 'Could not fetch the latest market price.',
+            duration: 4000,
+        });
+    }
+
+    setSelectedAsset({
+      asset: updatedAsset,
+      transactions: parsingLogs?.assetLogs?.[asset.asset]?.transactions || []
+    });
+    setIsFetchingPrice(false);
+  }
+
 
   const handleSchemaChange = (field: keyof typeof growwSchema, value: string) => {
     setGrowwSchema(prev => ({ ...prev, [field]: value }));
@@ -394,7 +402,7 @@ export default function AdminPage() {
           {isParsing && (
             <div className="flex justify-center items-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Parsing data & fetching prices...</p>
+              <p className="ml-4 text-muted-foreground">Parsing data...</p>
             </div>
           )}
 
@@ -425,23 +433,14 @@ export default function AdminPage() {
                           <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
                           <TableCell>{asset.assetType}</TableCell>
                           <TableCell className="text-right">
-                             <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm"><TableIcon className="mr-2 h-4 w-4" /> View Transactions</Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-6xl">
-                                  <DialogHeader>
-                                    <DialogTitle>Transaction Summary for: {asset.asset}</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="py-4">
-                                    <AssetLogsView 
-                                      asset={asset}
-                                      transactions={parsingLogs?.assetLogs?.[asset.asset]?.transactions || []} 
-                                      currency={currency}
-                                    />
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
+                              <Button variant="outline" size="sm" onClick={() => handleViewTransactions(asset)} disabled={isFetchingPrice}>
+                                {(isFetchingPrice && selectedAsset?.asset.asset === asset.asset) ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <TableIcon className="mr-2 h-4 w-4" />
+                                )}
+                                 View Transactions
+                              </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -450,6 +449,26 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           )}
+          
+          <Dialog open={!!selectedAsset} onOpenChange={(isOpen) => !isOpen && setSelectedAsset(null)}>
+              <DialogContent className="max-w-6xl">
+                {selectedAsset && (
+                  <>
+                  <DialogHeader>
+                    <DialogTitle>Transaction Summary for: {selectedAsset.asset.asset}</DialogTitle>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <AssetLogsView 
+                      asset={selectedAsset.asset}
+                      transactions={selectedAsset.transactions} 
+                      currency={currency}
+                    />
+                  </div>
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
+
 
           {hasAssets && assets.length === 0 && (
              <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
@@ -469,3 +488,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

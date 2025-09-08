@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Hash, Settings } from 'lucide-react';
 
 import KpiCard from '@/components/investview/kpi-card';
 import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
@@ -172,8 +173,14 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
-      <header className="p-4 border-b shadow-sm">
+      <header className="p-4 border-b shadow-sm flex justify-between items-center">
         <h1 className="text-2xl font-bold font-headline text-primary">InvestView</h1>
+        <Link href="/admin">
+            <Button variant="outline">
+                <Settings className="mr-2 h-4 w-4" />
+                Admin Panel
+            </Button>
+        </Link>
       </header>
 
       <main className="flex-grow p-4 md:p-8">
@@ -263,7 +270,7 @@ export default function Home() {
                   <CardDescription>
                     Get high-level suggestions from our AI to understand your portfolio's performance at a glance.
                   </CardDescription>
-                </CardHeader>
+                </Header>
                 <CardContent>
                   <Button onClick={generateAISuggestions} disabled={isAnalyzing}>
                     {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

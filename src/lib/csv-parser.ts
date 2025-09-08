@@ -152,20 +152,22 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
     }
 
     const mapping: GrowwSchemaMapping = schemaMapping || {
-        asset: 'Stock name', type: 'Type', quantity: 'Quantity', price: 'Price',
-        date: 'Execution date and time', status: 'Order status',
+        displayName: 'Stock name', symbol: 'Symbol', exchange: 'Exchange', type: 'Type',
+        quantity: 'Quantity', price: 'Price', date: 'Execution date and time', status: 'Order status',
     };
     logs.setup.push(`Using schema mapping: ${JSON.stringify(mapping)}`);
 
     const requiredHeaders = Object.values(mapping);
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
-        const error = `Invalid Groww CSV headers. Your file is missing: ${missingHeaders.join(', ')}. Please configure the schema if your column names differ.`;
+        const error = `Invalid Groww CSV headers. Your file is missing columns that are expected by the current schema mapping: ${missingHeaders.join(', ')}. Please configure the schema in the Admin Panel if your column names differ.`;
         logs.setup.push(`Error: ${error}`);
         return { assets: [], transactions: [], error, logs };
     }
 
-    const assetIndex = headers.indexOf(mapping.asset);
+    const displayNameIndex = headers.indexOf(mapping.displayName);
+    const symbolIndex = headers.indexOf(mapping.symbol);
+    const exchangeIndex = headers.indexOf(mapping.exchange);
     const quantityIndex = headers.indexOf(mapping.quantity);
     const priceIndex = headers.indexOf(mapping.price);
     const typeIndex = headers.indexOf(mapping.type);
@@ -181,10 +183,11 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         if (!line.trim()) continue;
 
         const data = line.split(delimiter).map(d => d.trim().replace(/"/g, ''));
-        const displayName = data[assetIndex];
-        // Heuristic: Assume NSE for Groww stocks and strip spaces for the ticker symbol
-        const symbol = displayName.replace(/\s+/g, '');
-        const assetName = `${symbol}.NS`; 
+        
+        const symbol = data[symbolIndex];
+        const exchange = data[exchangeIndex];
+        const displayName = data[displayNameIndex];
+        const assetName = `${symbol}.${exchange}`;
 
         if (!logs.assetLogs[assetName]) {
           logs.assetLogs[assetName] = { logs: [], transactions: [] };
@@ -204,7 +207,7 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
             continue;
         }
         
-        assetLogs.push({ step: `Row ${i + 1}`, action: 'Construct Ticker', details: `Using Stock Name: "${displayName}"`, result: `Yahoo Ticker: "${assetName}"` });
+        assetLogs.push({ step: `Row ${i + 1}`, action: 'Construct Ticker', details: `Using Symbol: "${symbol}" and Exchange: "${exchange}"`, result: `Yahoo Ticker: "${assetName}"` });
 
         const quantity = parseFloat(data[quantityIndex]);
         const totalValue = parseFloat(data[priceIndex]);
@@ -212,8 +215,8 @@ const parseGroww = (lines: string[], schemaMapping?: GrowwSchemaMapping): ParseR
         const dateStr = data[dateIndex];
         const date = parseGrowwDate(dateStr);
         
-        if (!assetName || isNaN(quantity) || quantity === 0 || isNaN(totalValue) || !date || isNaN(date.getTime())) {
-            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid number, date, or name. Qty: ${quantity}, Val: ${totalValue}, Date: ${dateStr}`, result: 'Skipped' });
+        if (!assetName || !symbol || !exchange || isNaN(quantity) || quantity === 0 || isNaN(totalValue) || !date || isNaN(date.getTime())) {
+            assetLogs.push({ step: `Row ${i + 1}`, action: 'Validate', details: `Invalid number, date, or name. Qty: ${quantity}, Val: ${totalValue}, Date: ${dateStr}, Symbol: ${symbol}, Exchange: ${exchange}`, result: 'Skipped' });
             continue;
         }
 
@@ -293,3 +296,5 @@ export const parseCSV = (csvText: string, template: CsvTemplate = 'default', gro
       return parseDefault(lines);
   }
 };
+
+    

@@ -236,8 +236,14 @@ export default function AdminPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
   const [growwSchema, setGrowwSchema] = useState({
-      asset: 'Stock name', type: 'Type', quantity: 'Quantity', price: 'Price',
-      date: 'Execution date and time', status: 'Order status',
+      displayName: 'Stock name',
+      symbol: 'Symbol',
+      exchange: 'Exchange',
+      type: 'Type',
+      quantity: 'Quantity',
+      price: 'Price',
+      date: 'Execution date and time',
+      status: 'Order status',
   });
   const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
@@ -574,3 +580,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

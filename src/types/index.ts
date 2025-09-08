@@ -28,7 +28,9 @@ export type Portfolio = {
 };
 
 export type GrowwSchemaMapping = {
-  asset: string;
+  displayName: string;
+  symbol: string;
+  exchange: string;
   type: string;
   quantity: string;
   price: string;
@@ -38,7 +40,7 @@ export type GrowwSchemaMapping = {
 
 export type StructuredLog = {
     step: string;
-    action: string;
+    action:string;
     details: string;
     result: string;
 }
@@ -53,3 +55,5 @@ export type ParsingLogs = {
   assetLogs: Record<string, AssetLog>;
   summary: string[];
 }
+
+    

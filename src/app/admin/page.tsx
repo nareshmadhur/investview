@@ -27,7 +27,7 @@ const defaultGrowwSchema = {
   status: 'Order status',
 };
 
-const AssetLogsView = ({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) => {
+function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) {
     if (!transactions || transactions.length === 0) {
         return <p className="text-sm text-muted-foreground">No transaction data available for this asset.</p>;
     }
@@ -219,14 +219,13 @@ function StockPriceFetcher() {
     );
 }
 
-
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
   const [growwSchema, setGrowwSchema] = useState(defaultGrowwSchema);
-  const [parsingLogs, setParsingLogs] = useState<any>(null);
+  const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const { toast } = useToast();
 

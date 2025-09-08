@@ -4,7 +4,9 @@
 import { useState } from 'react';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getStockPrice, scrapeYahooFinancePrice, type ApiResponse } from './actions';
+import { getStockPrice, scrapeYahooFinancePrice, getLatestNseBhavcopy, type ApiResponse, type BhavcopyResult } from './actions';
+import type { BhavcopyRecord } from '@/services/market-data';
+
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,18 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon, ExternalLink, Bot, Code } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, BookOpen, Search, TableIcon, ExternalLink, Bot, Code, Database } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-
-const defaultGrowwSchema = {
-  asset: 'Stock name',
-  type: 'Type',
-  quantity: 'Quantity',
-  price: 'Price',
-  date: 'Execution date and time',
-  status: 'Order status',
-};
 
 function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) {
     if (!transactions || transactions.length === 0) {
@@ -235,13 +228,94 @@ function StockPriceFetcher() {
     );
 }
 
+function BhavcopyDownloader() {
+    const [isLoading, setIsLoading] = useState(false);
+    const [result, setResult] = useState<BhavcopyResult | null>(null);
+    const [bhavcopyData, setBhavcopyData] = useState<BhavcopyRecord[] | null>(null);
+    const { toast } = useToast();
+
+    const handleFetchBhavcopy = async () => {
+        setIsLoading(true);
+        setResult(null);
+        setBhavcopyData(null);
+        try {
+            const res = await getLatestNseBhavcopy();
+            setResult(res);
+
+            if (res.error) {
+                toast({ variant: 'destructive', title: 'Bhavcopy Error', description: res.error, duration: 5000 });
+            }
+            if (res.data) {
+                toast({ variant: 'default', title: 'Bhavcopy Loaded', description: `Successfully parsed ${res.fileName}.` });
+                setBhavcopyData(res.data);
+            }
+
+        } catch (e) {
+            const error = e instanceof Error ? e.message : "An unknown error occurred.";
+            setResult({ error });
+            toast({ variant: 'destructive', title: 'Request Failed', description: error });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Database className="w-6 h-6" />
+                    Market Data Downloader
+                </CardTitle>
+                <CardDescription>
+                   Fetch the latest end-of-day data (Bhavcopy) from the NSE. This may take a moment as it involves downloading and unzipping a file.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button onClick={handleFetchBhavcopy} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Fetch Latest NSE Bhavcopy
+                </Button>
+                {bhavcopyData && (
+                    <div className="mt-6">
+                        <h4 className="font-semibold mb-2">Parsed Bhavcopy Data (First 20 records)</h4>
+                        <ScrollArea className="h-96 w-full rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Symbol</TableHead>
+                                        <TableHead>Series</TableHead>
+                                        <TableHead className="text-right">Close</TableHead>
+                                        <TableHead className="text-right">Prev. Close</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {bhavcopyData.slice(0, 20).map((record) => (
+                                        <TableRow key={record.SYMBOL}>
+                                            <TableCell className="font-medium">{record.SYMBOL}</TableCell>
+                                            <TableCell>{record.SERIES}</TableCell>
+                                            <TableCell className="text-right font-mono">{record.CLOSE.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right font-mono">{record.PREVCLOSE.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
-  const [growwSchema, setGrowwSchema] = useState(defaultGrowwSchema);
+  const [growwSchema, setGrowwSchema] = useState({
+      asset: 'Stock name', type: 'Type', quantity: 'Quantity', price: 'Price',
+      date: 'Execution date and time', status: 'Order status',
+  });
   const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const { toast } = useToast();
@@ -302,7 +376,7 @@ export default function AdminPage() {
     event.target.value = '';
   };
 
-  const handleSchemaChange = (field: keyof typeof defaultGrowwSchema, value: string) => {
+  const handleSchemaChange = (field: keyof typeof growwSchema, value: string) => {
     setGrowwSchema(prev => ({ ...prev, [field]: value }));
   };
   
@@ -316,6 +390,8 @@ export default function AdminPage() {
 
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto grid gap-8">
+          
+          <BhavcopyDownloader />
 
           <StockPriceFetcher />
 
@@ -369,10 +445,10 @@ export default function AdminPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {(Object.keys(defaultGrowwSchema) as Array<keyof typeof defaultGrowwSchema>).map(key => (
+                                {(Object.keys(growwSchema) as Array<keyof typeof growwSchema>).map(key => (
                                 <div key={key} className="grid gap-1.5">
                                     <Label htmlFor={`schema-${key}`} className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
-                                    <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} placeholder={`e.g. ${defaultGrowwSchema[key]}`} />
+                                    <Input id={`schema-${key}`} value={growwSchema[key]} onChange={(e) => handleSchemaChange(key, e.target.value)} />
                                 </div>
                                 ))}
                             </CardContent>

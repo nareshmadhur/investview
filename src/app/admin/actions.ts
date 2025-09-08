@@ -2,6 +2,7 @@
 'use server';
 
 import { z } from 'zod';
+import { fetchNseBhavcopy, type BhavcopyRecord } from '@/services/market-data';
 
 // Zod schema for Alpha Vantage API response
 const stockPriceSchema = z.object({
@@ -108,4 +109,40 @@ export async function scrapeYahooFinancePrice(symbol: string): Promise<ApiRespon
         }
         return { error: 'An unknown error occurred while scraping Yahoo Finance.' };
     }
+}
+
+
+export type BhavcopyResult = {
+    data?: BhavcopyRecord[];
+    error?: string;
+    fileName?: string;
+}
+
+/**
+ * Fetches the latest available NSE Bhavcopy data.
+ * It tries today first, then yesterday, up to 5 days back.
+ */
+export async function getLatestNseBhavcopy(): Promise<BhavcopyResult> {
+    const today = new Date();
+    for (let i = 0; i < 5; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+
+        // Skip weekends
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+        try {
+            console.log(`Attempting to fetch Bhavcopy for ${date.toISOString().split('T')[0]}`);
+            const result = await fetchNseBhavcopy(date);
+            return { data: result.data, fileName: result.fileName };
+        } catch (error) {
+            console.log(`Could not fetch Bhavcopy for ${date.toISOString().split('T')[0]}:`, error instanceof Error ? error.message : String(error));
+            // If it's the last attempt and it fails, return the error
+            if (i === 4) {
+                 return { error: `Failed to fetch Bhavcopy for the last 5 days. Last error: ${error instanceof Error ? error.message : String(error)}` };
+            }
+        }
+    }
+    return { error: 'Could not find any Bhavcopy data in the last 5 days.' };
 }

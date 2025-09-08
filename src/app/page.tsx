@@ -61,7 +61,7 @@ export default function Home() {
     }
   }, []);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setIsParsing(true);
@@ -86,33 +86,33 @@ export default function Home() {
             });
           }
           const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
-          let calculatedPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency, result.realizedProfit);
-          setPortfolio(calculatedPortfolio);
+          let initialPortfolio = calculatePortfolioMetrics(result.assets, result.transactions, currency, result.realizedProfit);
+          setPortfolio(initialPortfolio);
           setIsParsing(false);
           
           // Now fetch live prices
           setIsFetchingPrices(true);
           const assetsWithLivePrice = await Promise.all(
-            calculatedPortfolio.assets.map(async (asset) => {
+            initialPortfolio.assets.map(async (asset) => {
                 // For Indian stocks from Groww, assume .BSE, for others, use asset name directly.
                 const symbol = csvTemplate === 'groww' ? `${asset.asset}.BSE` : asset.asset;
                 const priceResponse = await getStockPrice(symbol);
                 if (priceResponse.price) {
                   return { ...asset, currentPrice: priceResponse.price };
                 }
-                // If API fails, keep the original price from CSV as fallback
+                // If API fails, keep the original price from CSV as fallback and notify user
                 toast({
                     variant: "destructive",
                     title: `Could not fetch price for ${asset.asset}`,
                     description: priceResponse.error || "The API may have rate limits or the symbol may not be supported.",
                 });
-                return asset;
+                return { ...asset, currentPrice: asset.purchasePrice }; // Explicitly fall back to purchase price
             })
           );
           
-          calculatedPortfolio = { ...calculatedPortfolio, assets: assetsWithLivePrice };
-          setPortfolio(calculatedPortfolio);
-          localStorage.setItem('portfolioData', JSON.stringify(calculatedPortfolio));
+          const finalPortfolio = { ...initialPortfolio, assets: assetsWithLivePrice };
+          setPortfolio(finalPortfolio);
+          localStorage.setItem('portfolioData', JSON.stringify(finalPortfolio));
 
         } catch (error) {
           console.error(error);
@@ -343,3 +343,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

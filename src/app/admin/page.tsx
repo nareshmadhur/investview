@@ -4,8 +4,7 @@
 import { useState } from 'react';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
-import { getEodhdSingleStockPrice } from './actions';
-import type { EodhdRecord } from '@/types';
+import { getYahooFinancePrice } from './actions';
 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, BookOpen, TableIcon, Database, Download, Search } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) {
@@ -122,27 +121,27 @@ function AssetLogsView({ asset, transactions, currency }: { asset: Asset, transa
     );
 };
 
-function StockPriceFetcher() {
-    const [symbol, setSymbol] = useState('RELIANCE.NSE');
+function YahooFinancePriceFetcher() {
+    const [symbol, setSymbol] = useState('RELIANCE.NS');
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<{ data?: EodhdRecord, error?: string } | null>(null);
+    const [result, setResult] = useState<{ price?: number; currency?: string; error?: string } | null>(null);
     const { toast } = useToast();
 
     const handleFetchPrice = async () => {
         if (!symbol) {
-            toast({ variant: 'destructive', title: 'Symbol Required', description: 'Please enter a stock symbol.' });
+            toast({ variant: 'destructive', title: 'Symbol Required', description: 'Please enter a stock symbol with an exchange suffix (e.g., .NS, .BO).' });
             return;
         }
         setIsLoading(true);
         setResult(null);
         try {
-            const res = await getEodhdSingleStockPrice(symbol);
+            const res = await getYahooFinancePrice(symbol);
             setResult(res);
 
             if (res.error) {
                 toast({ variant: 'destructive', title: 'API Error', description: res.error, duration: 5000 });
             }
-             if (res.data) {
+             if (res.price) {
                 toast({ variant: 'default', title: 'Price Loaded', description: `Successfully fetched price for ${symbol}.` });
             }
         } catch (e) {
@@ -159,17 +158,17 @@ function StockPriceFetcher() {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Database className="w-6 h-6" />
-                    EODHD Single Stock Price
+                    Yahoo Finance Price Fetcher
                 </CardTitle>
                 <CardDescription>
-                    Test the EODHD API by fetching the last traded price for a single stock. Use the format SYMBOL.EXCHANGE (e.g., RELIANCE.NSE or AAPL.US).
+                    Test the Yahoo Finance API by fetching the price for a single stock. Use the format SYMBOL.EXCHANGE (e.g., RELIANCE.NS for NSE, or RELIANCE.BO for BSE).
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex w-full max-w-sm items-center space-x-2">
                     <Input
                         type="text"
-                        placeholder="e.g., RELIANCE.NSE"
+                        placeholder="e.g., RELIANCE.NS"
                         value={symbol}
                         onChange={(e) => setSymbol(e.target.value.toUpperCase())}
                         onKeyDown={(e) => e.key === 'Enter' && handleFetchPrice()}
@@ -180,14 +179,11 @@ function StockPriceFetcher() {
                     </Button>
                 </div>
                 
-                {result && result.data && (
+                {result && result.price && result.currency && (
                     <div className="mt-6">
-                        <h4 className="font-semibold mb-2">Result for {result.data.code}</h4>
+                        <h4 className="font-semibold mb-2">Result for {symbol}</h4>
                         <div className="rounded-md border p-4 space-y-2 text-sm">
-                            <p><strong>Close:</strong> {result.data.close}</p>
-                            <p><strong>Change:</strong> {result.data.change.toFixed(2)} ({result.data.change_p.toFixed(2)}%)</p>
-                            <p><strong>Previous Close:</strong> {result.data.previousClose}</p>
-                            <p><strong>Volume:</strong> {result.data.volume.toLocaleString()}</p>
+                            <p><strong>Price:</strong> {new Intl.NumberFormat('en-US', { style: 'currency', currency: result.currency }).format(result.price)}</p>
                         </div>
                     </div>
                 )}
@@ -287,7 +283,7 @@ export default function AdminPage() {
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto grid gap-8">
           
-          <StockPriceFetcher />
+          <YahooFinancePriceFetcher />
 
           <Card>
             <CardHeader>

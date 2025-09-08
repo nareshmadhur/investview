@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Asset, GrowwSchemaMapping, ParsingLogs, StructuredLog } from '@/types';
+import type { Asset, GrowwSchemaMapping, ParsingLogs, StructuredLog, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,54 +58,104 @@ const LogTable = ({ logs, title }: { logs: string[], title: string }) => (
   </div>
 );
 
-const StructuredLogTable = ({ logs, title }: { logs: StructuredLog[], title: string }) => {
-    if (!logs || logs.length === 0) {
-        return null;
+const AssetLogsView = ({ asset, transactions, currency }: { asset: Asset, transactions: Transaction[], currency: 'USD' | 'INR' }) => {
+    if (!transactions || transactions.length === 0) {
+        return <p className="text-sm text-muted-foreground">No transaction data available for this asset.</p>;
     }
-    return (
-        <div className="mb-6">
-            <h4 className="font-semibold text-lg mb-2">{title}</h4>
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[100px]">Step</TableHead>
-                            <TableHead className="w-[150px]">Action</TableHead>
-                            <TableHead>Details</TableHead>
-                            <TableHead>Result</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {logs.map((log, index) => (
-                            <TableRow key={index}>
-                                <TableCell className="font-mono text-xs">{log.step}</TableCell>
-                                <TableCell className="font-medium">{log.action}</TableCell>
-                                <TableCell className="text-xs">{log.details}</TableCell>
-                                <TableCell className="text-xs font-mono">{log.result}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-        </div>
-    );
-};
-
-const AssetLogsView = ({ logs }: { logs: StructuredLog[] }) => {
-    const buyLogs = useMemo(() => logs.filter(log => log.action === 'Parse' && log.result.startsWith('Type: BUY')), [logs]);
-    const sellLogs = useMemo(() => logs.filter(log => log.action === 'Parse' && log.result.startsWith('Type: SELL')), [logs]);
-    const aggregationLogs = useMemo(() => logs.filter(log => ['Aggregate', 'Profit Calc', 'Final Aggregation'].includes(log.action)), [logs]);
-    const otherLogs = useMemo(() => logs.filter(log => !buyLogs.includes(log) && !sellLogs.includes(log) && !aggregationLogs.includes(log)), [logs]);
-
-    if (!logs || logs.length === 0) {
-        return <p className="text-sm text-muted-foreground">No detailed logs available for this asset.</p>;
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
     }
+
+    const buys = transactions.filter(t => t.type === 'BUY');
+    const sells = transactions.filter(t => t.type === 'SELL');
+
+    const totalBuyQuantity = buys.reduce((acc, t) => acc + t.quantity, 0);
+    const totalBuyValue = buys.reduce((acc, t) => acc + t.quantity * t.price, 0);
+    const totalSellQuantity = sells.reduce((acc, t) => acc + t.quantity, 0);
+    const totalSellValue = sells.reduce((acc, t) => acc + t.quantity * t.price, 0);
+    
+    const avgBuyPrice = totalBuyQuantity > 0 ? totalBuyValue / totalBuyQuantity : 0;
+    const realizedProfit = totalSellValue - (avgBuyPrice * totalSellQuantity);
+    
     return (
         <ScrollArea className="h-[60vh] w-full rounded-md border p-4">
-           <StructuredLogTable logs={buyLogs} title="Buy Transactions" />
-           <StructuredLogTable logs={sellLogs} title="Sell Transactions" />
-           <StructuredLogTable logs={aggregationLogs} title="Aggregation & Profit Calculation" />
-           {otherLogs.length > 0 && <StructuredLogTable logs={otherLogs} title="Other Logs" />}
+            <div className="grid gap-6">
+                <div>
+                    <h4 className="font-semibold text-lg mb-2">Transactions</h4>
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Type</TableHead>
+                                    <TableHead className="text-right">Quantity</TableHead>
+                                    <TableHead className="text-right">Price/Share</TableHead>
+                                    <TableHead className="text-right">Total Value</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {transactions.map((tx, index) => (
+                                    <TableRow key={index} className={tx.type === 'SELL' ? 'bg-red-500/10' : 'bg-green-500/10'}>
+                                        <TableCell className="font-mono text-xs">{tx.date.toLocaleDateString()}</TableCell>
+                                        <TableCell className="font-medium">{tx.type}</TableCell>
+                                        <TableCell className="text-right font-mono">{tx.quantity.toFixed(4)}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatCurrency(tx.price)}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatCurrency(tx.price * tx.quantity)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 className="font-semibold text-lg mb-2">Aggregation Summary</h4>
+                     <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                 <TableRow>
+                                    <TableHead>Metric</TableHead>
+                                    <TableHead className="text-right">Value</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-medium">Total Buy Quantity</TableCell>
+                                    <TableCell className="text-right font-mono">{totalBuyQuantity.toFixed(4)}</TableCell>
+                                </TableRow>
+                                 <TableRow>
+                                    <TableCell className="font-medium">Total Buy Value</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(totalBuyValue)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">Average Buy Price</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(avgBuyPrice)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">Total Sell Quantity</TableCell>
+                                    <TableCell className="text-right font-mono">{totalSellQuantity.toFixed(4)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">Total Sell Value</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(totalSellValue)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">Net Quantity (Holdings)</TableCell>
+                                    <TableCell className="text-right font-mono">{asset.quantity.toFixed(4)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">Net Cost of Holdings</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(asset.purchasePrice * asset.quantity)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium text-primary">Realized Profit for this Asset</TableCell>
+                                    <TableCell className="text-right font-mono text-primary font-bold">{formatCurrency(realizedProfit)}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+            </div>
         </ScrollArea>
     );
 };
@@ -118,6 +168,7 @@ export default function AdminPage() {
   const [csvTemplate, setCsvTemplate] = useState<CsvTemplate>('groww');
   const [growwSchema, setGrowwSchema] = useState<GrowwSchemaMapping>(defaultGrowwSchema);
   const [parsingLogs, setParsingLogs] = useState<ParsingLogs>(initialLogs);
+  const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const { toast } = useToast();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,6 +178,9 @@ export default function AdminPage() {
       setFileName(file.name);
       setAssets(null);
       setParsingLogs(initialLogs);
+      const selectedCurrency = csvTemplate === 'groww' ? 'INR' : 'USD';
+      setCurrency(selectedCurrency);
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -311,10 +365,14 @@ export default function AdminPage() {
                                 </DialogTrigger>
                                 <DialogContent className="max-w-6xl">
                                   <DialogHeader>
-                                    <DialogTitle>Parsing Logs for: {asset.asset}</DialogTitle>
+                                    <DialogTitle>Transaction Summary for: {asset.asset}</DialogTitle>
                                   </DialogHeader>
                                   <div className="py-4">
-                                    <AssetLogsView logs={parsingLogs.assetLogs[asset.asset]?.logs || []} />
+                                    <AssetLogsView 
+                                      asset={asset}
+                                      transactions={parsingLogs.assetLogs[asset.asset]?.transactions || []} 
+                                      currency={currency}
+                                    />
                                   </div>
                                 </DialogContent>
                               </Dialog>

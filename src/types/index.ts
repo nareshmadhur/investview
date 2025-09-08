@@ -42,6 +42,7 @@ export type StructuredLog = {
 
 export type AssetLog = {
   logs: StructuredLog[];
+  transactions: Transaction[];
 }
 
 export type ParsingLogs = {

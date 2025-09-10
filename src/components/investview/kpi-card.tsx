@@ -12,7 +12,10 @@ import {
 
 type KpiCardProps = {
   title: string;
-  value: number;
+  value?: number;
+  value_string?: string;
+  subValue?: string;
+  subValueClassName?: string;
   format?: 'currency' | 'number';
   icon?: LucideIcon;
   currency?: 'USD' | 'INR';
@@ -35,8 +38,28 @@ const formatNumber = (value: number) => {
     return new Intl.NumberFormat('en-US').format(value);
 }
 
-export default function KpiCard({ title, value, format = 'number', icon: Icon, currency = 'USD', fractionDigits, tooltipText, onClick }: KpiCardProps) {
-  const displayValue = format === 'currency' ? formatCurrency(value, currency, fractionDigits) : formatNumber(value);
+export default function KpiCard({ 
+    title, 
+    value, 
+    value_string,
+    subValue,
+    subValueClassName,
+    format = 'number', 
+    icon: Icon, 
+    currency = 'USD', 
+    fractionDigits, 
+    tooltipText, 
+    onClick 
+}: KpiCardProps) {
+  
+  let displayValue;
+  if (value !== undefined) {
+    displayValue = format === 'currency' 
+        ? formatCurrency(value, currency, fractionDigits) 
+        : formatNumber(value);
+  } else {
+    displayValue = value_string;
+  }
 
   return (
     <Card onClick={onClick} className={cn(onClick && "cursor-pointer hover:bg-muted/50 transition-colors")}>
@@ -59,9 +82,14 @@ export default function KpiCard({ title, value, format = 'number', icon: Icon, c
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </CardHeader>
       <CardContent>
-        <div className={cn("text-2xl font-bold", value < 0 && 'text-destructive')}>
+        <div className={cn("text-2xl font-bold", value !== undefined && value < 0 && 'text-destructive')}>
           {displayValue}
         </div>
+        {subValue && (
+            <p className={cn("text-xs text-muted-foreground", subValueClassName)}>
+                {subValue}
+            </p>
+        )}
       </CardContent>
     </Card>
   );

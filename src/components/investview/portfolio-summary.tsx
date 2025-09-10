@@ -3,17 +3,13 @@
 
 import { useMemo } from 'react';
 import type { Portfolio } from '@/types';
-import { TrendingUp, Wallet, ArrowRightLeft, Coins, BarChart, FileClock } from 'lucide-react';
-import KpiCard from './kpi-card';
+import { TrendingUp, Wallet, ArrowRightLeft, Coins, FileClock, Gem, Repeat, TrendingDown } from 'lucide-react';
+import KpiCard, { formatCurrency } from './kpi-card';
 import type { InfoPaneView } from './info-pane';
 
 export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portfolio: Portfolio, setInfoPaneView: (view: InfoPaneView) => void }) {
 
-    const { 
-        totalCurrentValue, 
-        unrealizedPL,
-        totalTransactions 
-    } = useMemo(() => {
+    const stats = useMemo(() => {
         let totalCurrentValue = 0;
         portfolio.assets.forEach(asset => {
             totalCurrentValue += asset.quantity * asset.currentPrice;
@@ -21,14 +17,73 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
         const unrealizedPL = totalCurrentValue - portfolio.totalCost;
         const totalTransactions = portfolio.transactions.length;
 
-        return { totalCurrentValue, unrealizedPL, totalTransactions };
+        // Top Movers Logic
+        if (portfolio.assets.length === 0 && portfolio.transactions.length === 0) {
+             return { totalCurrentValue, unrealizedPL, totalTransactions, mostTraded: null, largestHolding: null, topGainer: null, topLoser: null };
+        }
+
+        const transactionCounts: Record<string, number> = {};
+        portfolio.transactions.forEach(tx => {
+            transactionCounts[tx.asset] = (transactionCounts[tx.asset] || 0) + 1;
+        });
+
+        const mostTradedAssetTicker = Object.keys(transactionCounts).length > 0 
+            ? Object.keys(transactionCounts).reduce((a, b) => transactionCounts[a] > transactionCounts[b] ? a : b)
+            : null;
+
+        const findDisplayName = (ticker: string | null) => {
+            if (!ticker) return 'N/A';
+            const asset = portfolio.assets.find(a => a.asset === ticker);
+            if(asset) return asset.displayName;
+            const transaction = portfolio.transactions.find(t => t.asset === ticker);
+            if(transaction) return transaction.asset.split('.')[0];
+            return ticker;
+        }
+        
+        const mostTradedName = findDisplayName(mostTradedAssetTicker);
+        const mostTradedCount = mostTradedAssetTicker ? transactionCounts[mostTradedAssetTicker] : 0;
+        
+        const mostTraded = { name: mostTradedName, count: mostTradedCount };
+
+        if (portfolio.assets.length === 0) {
+             return { totalCurrentValue, unrealizedPL, totalTransactions, mostTraded, largestHolding: null, topGainer: null, topLoser: null };
+        }
+        
+        const largestHolding = portfolio.assets.reduce((max, asset) => (asset.quantity * asset.currentPrice) > (max.quantity * max.currentPrice) ? asset : max);
+
+        const assetsWithPL = portfolio.assets.map(asset => ({
+            ...asset,
+            unrealizedPL: (asset.quantity * asset.currentPrice) - (asset.quantity * asset.purchasePrice)
+        }));
+
+        const topGainer = [...assetsWithPL].sort((a, b) => b.unrealizedPL - a.unrealizedPL)[0];
+        const topLoser = [...assetsWithPL].sort((a, b) => a.unrealizedPL - b.unrealizedPL)[0];
+
+        return { 
+            totalCurrentValue, 
+            unrealizedPL, 
+            totalTransactions,
+            mostTraded,
+            largestHolding: {
+                name: largestHolding.displayName,
+                value: largestHolding.quantity * largestHolding.currentPrice
+            },
+            topGainer: {
+                name: topGainer.displayName,
+                pl: topGainer.unrealizedPL
+            },
+            topLoser: {
+                name: topLoser.displayName,
+                pl: topLoser.unrealizedPL
+            }
+        };
     }, [portfolio]);
 
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             <KpiCard
                 title="Current Value"
-                value={totalCurrentValue}
+                value={stats.totalCurrentValue}
                 format="currency"
                 icon={Wallet}
                 currency={portfolio.currency}
@@ -37,7 +92,7 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
             />
             <KpiCard
                 title="Unrealized P/L"
-                value={unrealizedPL}
+                value={stats.unrealizedPL}
                 format="currency"
                 icon={TrendingUp}
                 currency={portfolio.currency}
@@ -55,7 +110,7 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
             />
              <KpiCard 
                 title="Total Transactions" 
-                value={totalTransactions} 
+                value={stats.totalTransactions} 
                 icon={ArrowRightLeft} 
                 tooltipText="The total number of buy/sell transactions. Click to see the full log."
                 onClick={() => setInfoPaneView({ type: 'transactions'})}
@@ -68,6 +123,44 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
                 tooltipText="A chart showing buy/sell volume over the years. Click to view."
                 onClick={() => setInfoPaneView({ type: 'yearly_activity'})}
             />
+            {stats.largestHolding && (
+                <KpiCard 
+                    title="Largest Holding"
+                    value_string={stats.largestHolding.name}
+                    subValue={formatCurrency(stats.largestHolding.value, portfolio.currency)}
+                    icon={Gem}
+                    onClick={() => setInfoPaneView({ type: 'largest_holding' })}
+                />
+            )}
+             {stats.topGainer && stats.topGainer.pl > 0 && (
+                <KpiCard 
+                    title="Top Gainer"
+                    value_string={stats.topGainer.name}
+                    subValue={`+${formatCurrency(stats.topGainer.pl, portfolio.currency)}`}
+                    subValueClassName="text-green-600"
+                    icon={TrendingUp}
+                    onClick={() => setInfoPaneView({ type: 'top_gainer' })}
+                />
+            )}
+             {stats.topLoser && stats.topLoser.pl < 0 && (
+                <KpiCard 
+                    title="Top Loser"
+                    value_string={stats.topLoser.name}
+                    subValue={formatCurrency(stats.topLoser.pl, portfolio.currency)}
+                    subValueClassName="text-red-600"
+                    icon={TrendingDown}
+                    onClick={() => setInfoPaneView({ type: 'top_loser' })}
+                />
+            )}
+            {stats.mostTraded && stats.mostTraded.count > 0 && (
+                 <KpiCard 
+                    title="Most Traded"
+                    value_string={stats.mostTraded.name}
+                    subValue={`${stats.mostTraded.count} transactions`}
+                    icon={Repeat}
+                    onClick={() => setInfoPaneView({ type: 'most_traded' })}
+                />
+            )}
         </div>
     );
 }

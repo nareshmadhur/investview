@@ -162,7 +162,7 @@ export default function AdminPage() {
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[], isPriceLive: boolean} | null>(null);
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
-  const [bulkFetchResults, setBulkFetchResults] = useState<{success: string[], failed: {asset: string, error: string}[]} | null>(null);
+  const [priceFetchSummary, setPriceFetchSummary] = useState<{success: string[], failed: {asset: string, error: string}[]} | null>(null);
 
   const { toast } = useToast();
 
@@ -222,7 +222,7 @@ export default function AdminPage() {
       setAssets(null);
       setParsingLogs(null);
       setSelectedAsset(null);
-      setBulkFetchResults(null);
+      setPriceFetchSummary(null);
       toast({ title: 'Processing File', description: 'Parsing your CSV file...' });
 
       const reader = new FileReader();
@@ -278,7 +278,7 @@ export default function AdminPage() {
   const handleBulkFetchPrices = async () => {
     if (!assets) return;
     setIsFetchingPrices(true);
-    setBulkFetchResults(null);
+    setPriceFetchSummary(null);
     toast({ title: 'Bulk Fetching Prices', description: `Fetching live data for ${assets.length} assets...`});
 
     const results = await Promise.all(
@@ -296,7 +296,7 @@ export default function AdminPage() {
         }
     });
 
-    setBulkFetchResults({ success, failed });
+    setPriceFetchSummary({ success, failed });
     setIsFetchingPrices(false);
     toast({ title: 'Bulk Fetch Complete', description: `${success.length} succeeded, ${failed.length} failed.` });
   }
@@ -316,236 +316,241 @@ export default function AdminPage() {
       </header>
 
       <main className="flex-grow p-4 md:p-8">
-        <div className="max-w-7xl mx-auto grid gap-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-6 h-6" />
-                Aggregated Data Viewer
-              </CardTitle>
-              <CardDescription>
-                Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered. Click on an asset in the table below to see its detailed transaction history and current valuation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid sm:grid-cols-1 md:grid-cols-[180px_1fr_auto] items-center gap-4">
-              <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a template" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="groww">Groww</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <label htmlFor="csv-upload" className="w-full">
-                <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
-                  <div>
-                    {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                    {fileName || "Click to select a .csv file"}
-                  </div>
-                </Button>
-              </label>
-              <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="sr-only" disabled={isParsing} />
-              
-              <Button onClick={handleBulkFetchPrices} disabled={!hasAssets || isFetchingPrices} className="w-full md:w-auto">
-                 {isFetchingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
-                 Fetch All Live Prices
-              </Button>
-            </CardContent>
-          </Card>
-          
-          {isParsing && (
-            <div className="flex justify-center items-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Parsing data...</p>
-            </div>
-          )}
-
-          {parsingLogs && (
+          <div className="lg:col-span-2 space-y-8">
             <Card>
                 <CardHeader>
-                    <CardTitle>Parsing Logs</CardTitle>
-                    <CardDescription>Detailed step-by-step process of how the CSV file was parsed.</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                    <Upload className="w-6 h-6" />
+                    Aggregated Data Viewer
+                </CardTitle>
+                <CardDescription>
+                    Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered. Click on an asset in the table below to see its detailed transaction history and current valuation.
+                </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="setup">
-                            <AccordionTrigger>Setup and Header Validation</AccordionTrigger>
-                            <AccordionContent>
-                                <ul className="list-disc pl-5 font-mono text-xs space-y-1">
-                                    {parsingLogs.setup.map((log, i) => <li key={i}>{log}</li>)}
-                                </ul>
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="assets">
-                             <AccordionTrigger>Asset Processing ({Object.keys(parsingLogs.assetLogs).length} assets)</AccordionTrigger>
-                             <AccordionContent>
-                                <ScrollArea className="h-[40vh]">
-                                <Accordion type="multiple" className="w-full pr-4">
-                                    {Object.entries(parsingLogs.assetLogs).map(([assetName, assetLog]) => (
-                                        <AccordionItem value={assetName} key={assetName}>
-                                            <AccordionTrigger>{assetName}</AccordionTrigger>
-                                            <AccordionContent>
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Step</TableHead>
-                                                            <TableHead>Action</TableHead>
-                                                            <TableHead>Details</TableHead>
-                                                            <TableHead>Result</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {assetLog.logs.map((log, i) => (
-                                                            <TableRow key={i}>
-                                                                <TableCell className="font-mono text-xs">{log.step}</TableCell>
-                                                                <TableCell className="font-mono text-xs">{log.action}</TableCell>
-                                                                <TableCell className="font-mono text-xs">{log.details}</TableCell>
-                                                                <TableCell className="font-mono text-xs">{log.result}</TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    ))}
-                                </Accordion>
-                                </ScrollArea>
-                             </AccordionContent>
-                        </AccordionItem>
-                         <AccordionItem value="summary">
-                            <AccordionTrigger>Summary</AccordionTrigger>
-                            <AccordionContent>
-                                 <ul className="list-disc pl-5 font-mono text-xs space-y-1">
-                                    {parsingLogs.summary.map((log, i) => <li key={i}>{log}</li>)}
-                                </ul>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
+                <CardContent className="grid sm:grid-cols-1 md:grid-cols-[180px_1fr_auto] items-center gap-4">
+                <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
+                    <SelectTrigger>
+                    <SelectValue placeholder="Select a template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="groww">Groww</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <label htmlFor="csv-upload" className="w-full">
+                    <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
+                    <div>
+                        {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                        {fileName || "Click to select a .csv file"}
+                    </div>
+                    </Button>
+                </label>
+                <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="sr-only" disabled={isParsing} />
+                
+                <Button onClick={handleBulkFetchPrices} disabled={!hasAssets || isFetchingPrices} className="w-full md:w-auto">
+                    {isFetchingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
+                    Fetch All Live Prices
+                </Button>
                 </CardContent>
             </Card>
-          )}
 
-          {hasAssets && assets.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Parsed Asset Data</CardTitle>
-                <CardDescription>
-                  This is the final aggregated data. Click a row to see the detailed transaction summary for that specific asset.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Asset Name</TableHead>
-                        <TableHead>Yahoo Query Ticker</TableHead>
-                        <TableHead>Net Quantity</TableHead>
-                        <TableHead>Avg. Purchase Price</TableHead>
-                        <TableHead>Asset Type</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {assets.map((asset, index) => (
-                        <TableRow key={`${asset.asset}-${index}`}>
-                          <TableCell className="font-medium">{asset.displayName}</TableCell>
-                          <TableCell className="font-mono text-xs">{asset.asset}</TableCell>
-                          <TableCell>{asset.quantity.toFixed(4)}</TableCell>
-                          <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
-                          <TableCell>{asset.assetType}</TableCell>
-                          <TableCell className="text-right">
-                              <Button variant="outline" size="sm" onClick={() => handleViewTransactions(asset)} disabled={isFetchingPrices && selectedAsset?.asset.asset !== asset.asset}>
-                                {isFetchingPrices && selectedAsset?.asset.asset === asset.asset ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                    <TableIcon className="mr-2 h-4 w-4" />
-                                )}
-                                 View Transactions
-                              </Button>
-                          </TableCell>
+            {isParsing && (
+              <div className="flex justify-center items-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-4 text-muted-foreground">Parsing data...</p>
+              </div>
+            )}
+
+             {hasAssets && assets.length > 0 && (
+                <Card>
+                <CardHeader>
+                    <CardTitle>Parsed Asset Data</CardTitle>
+                    <CardDescription>
+                    This is the final aggregated data. Click a row to see the detailed transaction summary for that specific asset.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ScrollArea className="h-[60vh]">
+                        <Table>
+                        <TableHeader>
+                        <TableRow>
+                            <TableHead>Asset Name</TableHead>
+                            <TableHead>Yahoo Query Ticker</TableHead>
+                            <TableHead>Net Quantity</TableHead>
+                            <TableHead>Avg. Purchase Price</TableHead>
+                            <TableHead>Asset Type</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-              </CardContent>
-            </Card>
-          )}
-          
-          <Dialog open={!!selectedAsset} onOpenChange={(isOpen) => !isOpen && setSelectedAsset(null)}>
-              <DialogContent className="max-w-4xl">
-                {selectedAsset && (
-                  <>
-                  <DialogHeader>
-                    <DialogTitle>Transaction Summary for: {selectedAsset.asset.displayName}</DialogTitle>
-                  </DialogHeader>
-                  <div className="py-4">
-                    <AssetLogsView 
-                      asset={selectedAsset.asset}
-                      transactions={selectedAsset.transactions} 
-                      currency={currency}
-                      isPriceLive={selectedAsset.isPriceLive}
-                    />
-                  </div>
-                  </>
-                )}
-              </DialogContent>
-            </Dialog>
+                        </TableHeader>
+                        <TableBody>
+                        {assets.map((asset, index) => (
+                            <TableRow key={`${asset.asset}-${index}`}>
+                            <TableCell className="font-medium">{asset.displayName}</TableCell>
+                            <TableCell className="font-mono text-xs">{asset.asset}</TableCell>
+                            <TableCell>{asset.quantity.toFixed(4)}</TableCell>
+                            <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
+                            <TableCell>{asset.assetType}</TableCell>
+                            <TableCell className="text-right">
+                                <Button variant="outline" size="sm" onClick={() => handleViewTransactions(asset)} disabled={isFetchingPrices && selectedAsset?.asset.asset !== asset.asset}>
+                                    {isFetchingPrices && selectedAsset?.asset.asset === asset.asset ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <TableIcon className="mr-2 h-4 w-4" />
+                                    )}
+                                    View Transactions
+                                </Button>
+                            </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                    </ScrollArea>
+                </CardContent>
+                </Card>
+            )}
 
-            <Dialog open={!!bulkFetchResults} onOpenChange={(isOpen) => !isOpen && setBulkFetchResults(null)}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Bulk Price Fetch Results</DialogTitle>
-                        <DialogDescription>
-                            Summary of the live price fetching process for all assets.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {bulkFetchResults && (
-                        <div className="grid grid-cols-2 gap-6 pt-4">
-                            <div>
-                                <h3 className="font-semibold text-green-600 mb-2">Succeeded ({bulkFetchResults.success.length})</h3>
-                                <ScrollArea className="h-60">
-                                    <ul className="list-disc pl-5 text-sm space-y-1">
-                                        {bulkFetchResults.success.map(asset => <li key={asset}>{asset}</li>)}
+            {hasAssets && assets.length === 0 && (
+                <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
+                    <h3 className="text-lg font-semibold">No Holdings Found</h3>
+                    <p>All assets may have been sold, or the file contained no valid transactions. Check the global logs above for details.</p>
+                </div>
+            )}
+
+            {!hasAssets && !isParsing &&
+                <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
+                <h3 className="text-lg font-semibold">Admin Panel</h3>
+                <p>Upload a file to see the aggregated parsed data.</p>
+                </div>
+            }
+          </div>
+
+          <div className="lg:col-span-1 space-y-8">
+            {parsingLogs && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Parsing Logs</CardTitle>
+                        <CardDescription>Detailed step-by-step process of how the CSV file was parsed.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="setup">
+                                <AccordionTrigger>Setup and Header Validation</AccordionTrigger>
+                                <AccordionContent>
+                                    <ul className="list-disc pl-5 font-mono text-xs space-y-1">
+                                        {parsingLogs.setup.map((log, i) => <li key={i}>{log}</li>)}
                                     </ul>
-                                </ScrollArea>
-                            </div>
-                             <div>
-                                <h3 className="font-semibold text-red-600 mb-2">Failed ({bulkFetchResults.failed.length})</h3>
-                                <ScrollArea className="h-60">
-                                    <ul className="space-y-2">
-                                        {bulkFetchResults.failed.map(fail => (
-                                            <li key={fail.asset} className="text-sm p-2 rounded-md bg-destructive/10">
-                                                <p className="font-bold">{fail.asset}</p>
-                                                <p className="text-xs text-muted-foreground">{fail.error}</p>
-                                            </li>
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="assets">
+                                <AccordionTrigger>Asset Processing ({Object.keys(parsingLogs.assetLogs).length} assets)</AccordionTrigger>
+                                <AccordionContent>
+                                    <ScrollArea className="h-[40vh]">
+                                    <Accordion type="multiple" className="w-full pr-4">
+                                        {Object.entries(parsingLogs.assetLogs).map(([assetName, assetLog]) => (
+                                            <AccordionItem value={assetName} key={assetName}>
+                                                <AccordionTrigger>{assetName}</AccordionTrigger>
+                                                <AccordionContent>
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>Step</TableHead>
+                                                                <TableHead>Action</TableHead>
+                                                                <TableHead>Details</TableHead>
+                                                                <TableHead>Result</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {assetLog.logs.map((log, i) => (
+                                                                <TableRow key={i}>
+                                                                    <TableCell className="font-mono text-xs">{log.step}</TableCell>
+                                                                    <TableCell className="font-mono text-xs">{log.action}</TableCell>
+                                                                    <TableCell className="font-mono text-xs">{log.details}</TableCell>
+                                                                    <TableCell className="font-mono text-xs">{log.result}</TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </AccordionContent>
+                                            </AccordionItem>
                                         ))}
+                                    </Accordion>
+                                    </ScrollArea>
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="summary">
+                                <AccordionTrigger>Summary</AccordionTrigger>
+                                <AccordionContent>
+                                    <ul className="list-disc pl-5 font-mono text-xs space-y-1">
+                                        {parsingLogs.summary.map((log, i) => <li key={i}>{log}</li>)}
                                     </ul>
-                                </ScrollArea>
-                            </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </CardContent>
+                </Card>
+            )}
+
+            {priceFetchSummary && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Price Fetch Summary</CardTitle>
+                         <CardDescription>
+                            Summary of the live price fetching process for all assets.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                         <div>
+                            <h3 className="font-semibold text-green-600 mb-2">Succeeded ({priceFetchSummary.success.length})</h3>
+                            <ScrollArea className="h-40 border rounded-md">
+                                <ul className="p-2 list-disc pl-6 text-sm space-y-1">
+                                    {priceFetchSummary.success.map(asset => <li key={asset}>{asset}</li>)}
+                                </ul>
+                            </ScrollArea>
                         </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+                        <div>
+                            <h3 className="font-semibold text-red-600 mb-2">Failed ({priceFetchSummary.failed.length})</h3>
+                            <ScrollArea className="h-40 border rounded-md">
+                                <ul className="p-2 space-y-2">
+                                    {priceFetchSummary.failed.map(fail => (
+                                        <li key={fail.asset} className="text-sm p-2 rounded-md bg-destructive/10">
+                                            <p className="font-bold">{fail.asset}</p>
+                                            <p className="text-xs text-muted-foreground">{fail.error}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </ScrollArea>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
-
-          {hasAssets && assets.length === 0 && (
-             <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
-                <h3 className="text-lg font-semibold">No Holdings Found</h3>
-                <p>All assets may have been sold, or the file contained no valid transactions. Check the global logs above for details.</p>
-             </div>
-          )}
-
-          {!hasAssets && !isParsing &&
-            <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
-              <h3 className="text-lg font-semibold">Admin Panel</h3>
-              <p>Upload a file to see the aggregated parsed data.</p>
-            </div>
-          }
+          </div>
         </div>
       </main>
+
+       <Dialog open={!!selectedAsset} onOpenChange={(isOpen) => !isOpen && setSelectedAsset(null)}>
+            <DialogContent className="max-w-4xl">
+            {selectedAsset && (
+                <>
+                <DialogHeader>
+                <DialogTitle>Transaction Summary for: {selectedAsset.asset.displayName}</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                <AssetLogsView 
+                    asset={selectedAsset.asset}
+                    transactions={selectedAsset.transactions} 
+                    currency={currency}
+                    isPriceLive={selectedAsset.isPriceLive}
+                />
+                </div>
+                </>
+            )}
+            </DialogContent>
+        </Dialog>
     </div>
   );
-}
+
+    

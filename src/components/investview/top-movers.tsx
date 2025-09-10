@@ -2,13 +2,14 @@
 'use client';
 import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Asset, Transaction } from '@/types';
+import type { Portfolio } from '@/types';
 import { TrendingUp, TrendingDown, Repeat, Gem } from 'lucide-react';
 import { formatCurrency } from './kpi-card';
 import { cn } from '@/lib/utils';
+import type { InfoPaneView } from './info-pane';
 
-const StatCard = ({ icon: Icon, title, value, subValue, className = '' }: { icon: React.ElementType, title: string, value: string, subValue?: string, className?: string}) => (
-    <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/50">
+const StatCard = ({ icon: Icon, title, value, subValue, className = '', onClick }: { icon: React.ElementType, title: string, value: string, subValue?: string, className?: string, onClick?: () => void }) => (
+    <div className={cn("flex items-start gap-4 p-4 rounded-lg bg-muted/50", onClick && "cursor-pointer hover:bg-muted/80 transition-colors")} onClick={onClick}>
         <div className="p-2 bg-muted rounded-full">
             <Icon className={cn("w-6 h-6 text-muted-foreground", className)} />
         </div>
@@ -20,12 +21,12 @@ const StatCard = ({ icon: Icon, title, value, subValue, className = '' }: { icon
     </div>
 );
 
-export default function TopMovers({ assets, transactions, currency }: { assets: Asset[], transactions: Transaction[], currency: 'USD' | 'INR' }) {
+export default function TopMovers({ portfolio, setInfoPaneView }: { portfolio: Portfolio, setInfoPaneView: (view: InfoPaneView) => void }) {
     const stats = useMemo(() => {
-        if (assets.length === 0 && transactions.length === 0) return null;
+        if (portfolio.assets.length === 0 && portfolio.transactions.length === 0) return null;
 
         const transactionCounts: Record<string, number> = {};
-        transactions.forEach(tx => {
+        portfolio.transactions.forEach(tx => {
             transactionCounts[tx.asset] = (transactionCounts[tx.asset] || 0) + 1;
         });
 
@@ -33,29 +34,29 @@ export default function TopMovers({ assets, transactions, currency }: { assets: 
             ? Object.keys(transactionCounts).reduce((a, b) => transactionCounts[a] > transactionCounts[b] ? a : b)
             : null;
 
-        const findDisplayName = (ticker: string) => {
-            const asset = assets.find(a => a.asset === ticker);
+        const findDisplayName = (ticker: string | null) => {
+            if (!ticker) return 'N/A';
+            const asset = portfolio.assets.find(a => a.asset === ticker);
             if(asset) return asset.displayName;
-            const transaction = transactions.find(t => t.asset === ticker);
-            // This is a bit of a hack to get the display name for assets that have been completely sold.
-            // A better solution would be a persistant map of ticker -> displayname.
+            // Fallback for sold assets
+            const transaction = portfolio.transactions.find(t => t.asset === ticker);
             if(transaction) return transaction.asset.split('.')[0];
             return ticker;
         }
 
-        const mostTradedName = mostTradedAssetTicker ? findDisplayName(mostTradedAssetTicker) : 'N/A';
+        const mostTradedName = findDisplayName(mostTradedAssetTicker);
         const mostTradedCount = mostTradedAssetTicker ? transactionCounts[mostTradedAssetTicker] : 0;
 
-        if (assets.length === 0) {
+        if (portfolio.assets.length === 0) {
              return {
                 mostTraded: { name: mostTradedName, count: mostTradedCount },
                 largestHolding: null, topGainer: null, topLoser: null
             };
         }
 
-        const largestHolding = assets.reduce((max, asset) => (asset.quantity * asset.currentPrice) > (max.quantity * max.currentPrice) ? asset : max);
+        const largestHolding = portfolio.assets.reduce((max, asset) => (asset.quantity * asset.currentPrice) > (max.quantity * max.currentPrice) ? asset : max);
 
-        const assetsWithPL = assets.map(asset => ({
+        const assetsWithPL = portfolio.assets.map(asset => ({
             ...asset,
             unrealizedPL: (asset.quantity * asset.currentPrice) - (asset.quantity * asset.purchasePrice)
         }));
@@ -81,7 +82,7 @@ export default function TopMovers({ assets, transactions, currency }: { assets: 
                 pl: topLoser.unrealizedPL
             }
         }
-    }, [assets, transactions]);
+    }, [portfolio]);
 
     if (!stats) return null;
 
@@ -89,22 +90,24 @@ export default function TopMovers({ assets, transactions, currency }: { assets: 
         <Card>
             <CardHeader>
                 <CardTitle>Top Movers & Key Holdings</CardTitle>
-                <CardDescription>At-a-glance analytics of your portfolio's key assets.</CardDescription>
+                <CardDescription>At-a-glance analytics of your portfolio's key assets. Click any card for details.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                     <StatCard 
                         icon={Repeat}
                         title="Most Traded Asset"
                         value={stats.mostTraded.name}
                         subValue={stats.mostTraded.count > 0 ? `${stats.mostTraded.count} transactions` : undefined}
+                        onClick={() => setInfoPaneView({ type: 'most_traded' })}
                     />
                     {stats.largestHolding && (
                      <StatCard 
                         icon={Gem}
                         title="Largest Holding by Value"
                         value={stats.largestHolding.name}
-                        subValue={formatCurrency(stats.largestHolding.value, currency)}
+                        subValue={formatCurrency(stats.largestHolding.value, portfolio.currency)}
+                        onClick={() => setInfoPaneView({ type: 'largest_holding' })}
                     />
                     )}
                     {stats.topGainer && stats.topGainer.pl > 0 && (
@@ -112,8 +115,9 @@ export default function TopMovers({ assets, transactions, currency }: { assets: 
                         icon={TrendingUp}
                         title="Top Gainer (Unrealized)"
                         value={stats.topGainer.name}
-                        subValue={`+${formatCurrency(stats.topGainer.pl, currency)}`}
+                        subValue={`+${formatCurrency(stats.topGainer.pl, portfolio.currency)}`}
                         className="text-green-500"
+                        onClick={() => setInfoPaneView({ type: 'top_gainer' })}
                     />
                     )}
                      {stats.topLoser && stats.topLoser.pl < 0 && (
@@ -121,8 +125,9 @@ export default function TopMovers({ assets, transactions, currency }: { assets: 
                         icon={TrendingDown}
                         title="Top Loser (Unrealized)"
                         value={stats.topLoser.name}
-                        subValue={formatCurrency(stats.topLoser.pl, currency)}
+                        subValue={formatCurrency(stats.topLoser.pl, portfolio.currency)}
                         className="text-red-500"
+                         onClick={() => setInfoPaneView({ type: 'top_loser' })}
                     />
                     )}
                 </div>
@@ -130,3 +135,5 @@ export default function TopMovers({ assets, transactions, currency }: { assets: 
         </Card>
     )
 }
+
+    

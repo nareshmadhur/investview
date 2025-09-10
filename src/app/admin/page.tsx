@@ -151,7 +151,7 @@ function AssetLogsView({
             </div>
         </ScrollArea>
     );
-};
+}
 
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
@@ -558,5 +558,4 @@ export default function AdminPage() {
         </Dialog>
     </div>
   );
-
-    
+}

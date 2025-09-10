@@ -262,6 +262,8 @@ export default function Home() {
           {portfolio && !isParsing && (
             <>
               <PortfolioSummary portfolio={portfolio} />
+              
+              <TopMovers assets={portfolio.assets} transactions={portfolio.transactions} currency={portfolio.currency}/>
 
               <div className="grid gap-8 lg:grid-cols-5">
                  <div className="lg:col-span-3">
@@ -270,10 +272,6 @@ export default function Home() {
                  <div className="lg:col-span-2">
                     <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
                  </div>
-              </div>
-
-              <div className="grid gap-8 lg:grid-cols-1">
-                 <TopMovers assets={portfolio.assets} transactions={portfolio.transactions} currency={portfolio.currency}/>
               </div>
 
               <Card>

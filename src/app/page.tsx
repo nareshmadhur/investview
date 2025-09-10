@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import type { Portfolio, Asset } from '@/types';
+import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 import { getYahooFinancePrice } from './admin/actions';
@@ -21,6 +21,7 @@ import InfoPane, { type InfoPaneView } from '@/components/investview/info-pane';
 import TopMovers from '@/components/investview/top-movers';
 import { Sidebar, SidebarContent, SidebarHeader, SidebarTrigger } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
+import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -262,7 +263,7 @@ export default function Home() {
             </div>
           </header>
           <main className="flex-1 overflow-y-auto p-4 md:p-8">
-            <div className="max-w-full mx-auto">
+            <div className="max-w-full mx-auto space-y-8">
               {isParsing && (
                 <div className="flex justify-center items-center py-16">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -273,39 +274,43 @@ export default function Home() {
               )}
 
               {portfolio && !isParsing && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-1 space-y-8">
-                    <PortfolioSummary portfolio={portfolio} setInfoPaneView={setInfoPaneView}/>
-                    <TopMovers portfolio={portfolio} setInfoPaneView={setInfoPaneView}/>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Lightbulb className="w-6 h-6 text-yellow-400" />
-                          Intelligent Analysis
-                        </CardTitle>
-                        <CardDescription>
-                          Get high-level suggestions from our AI to understand your portfolio's performance.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Button onClick={generateAISuggestions} disabled={isAnalyzing}>
-                          {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Generate AI Suggestions
-                        </Button>
-                        {isAnalyzing && !aiSuggestions && <p className="mt-4 text-sm text-muted-foreground">Our AI is analyzing your portfolio...</p>}
-                        {aiSuggestions && (
-                          <div className="mt-4 p-4 bg-accent/20 rounded-lg border border-border">
-                            <p className="text-sm text-accent-foreground whitespace-pre-wrap">{aiSuggestions}</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                  <div className="lg:col-span-2">
-                    <InfoPane portfolio={portfolio} view={infoPaneView} />
-                  </div>
-                </div>
+                <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                             <PortfolioSummary portfolio={portfolio} setInfoPaneView={setInfoPaneView}/>
+                        </div>
+                         <div className="space-y-8">
+                             <TopMovers portfolio={portfolio} setInfoPaneView={setInfoPaneView}/>
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                    <Lightbulb className="w-6 h-6 text-yellow-400" />
+                                    Intelligent Analysis
+                                    </CardTitle>
+                                    <CardDescription>
+                                    Get high-level suggestions from our AI to understand your portfolio's performance.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Button onClick={generateAISuggestions} disabled={isAnalyzing}>
+                                    {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Generate AI Suggestions
+                                    </Button>
+                                    {isAnalyzing && !aiSuggestions && <p className="mt-4 text-sm text-muted-foreground">Our AI is analyzing your portfolio...</p>}
+                                    {aiSuggestions && (
+                                    <div className="mt-4 p-4 bg-accent/20 rounded-lg border border-border">
+                                        <p className="text-sm text-accent-foreground whitespace-pre-wrap">{aiSuggestions}</p>
+                                    </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                         </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                         <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
+                         <InfoPane portfolio={portfolio} view={infoPaneView} />
+                    </div>
+                </>
               )}
 
               {!portfolio && !isParsing &&
@@ -323,5 +328,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

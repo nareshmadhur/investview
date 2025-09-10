@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { Portfolio } from '@/types';
-import { TrendingUp, Wallet, ArrowRightLeft, Coins, BarChart } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowRightLeft, Coins, BarChart, FileClock } from 'lucide-react';
 import KpiCard from './kpi-card';
 import type { InfoPaneView } from './info-pane';
 
@@ -25,7 +25,7 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
     }, [portfolio]);
 
     return (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <KpiCard
                 title="Current Value"
                 value={totalCurrentValue}
@@ -61,15 +61,13 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
                 onClick={() => setInfoPaneView({ type: 'transactions'})}
             />
              <KpiCard 
-                title="Yearly Activity" 
-                value={portfolio.transactions.length > 0 ? new Date(portfolio.transactions[0].date).getFullYear() : new Date().getFullYear()} 
+                title="Investment Activity" 
+                value={portfolio.transactions.length}
                 format="number"
-                icon={BarChart} 
+                icon={FileClock} 
                 tooltipText="A chart showing buy/sell volume over the years. Click to view."
                 onClick={() => setInfoPaneView({ type: 'yearly_activity'})}
             />
         </div>
     );
 }
-
-    

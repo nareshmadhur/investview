@@ -316,7 +316,7 @@ export default function AdminPage() {
       </header>
 
       <main className="flex-grow p-4 md:p-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           <div className="lg:col-span-2 space-y-8">
             <Card>
@@ -329,7 +329,7 @@ export default function AdminPage() {
                     Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered. Click on an asset in the table below to see its detailed transaction history and current valuation.
                 </CardDescription>
                 </CardHeader>
-                <CardContent className="grid sm:grid-cols-1 md:grid-cols-[180px_1fr_auto] items-center gap-4">
+                <CardContent className="grid sm:grid-cols-1 md:grid-cols-3 items-center gap-4">
                 <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
                     <SelectTrigger>
                     <SelectValue placeholder="Select a template" />
@@ -552,5 +552,7 @@ export default function AdminPage() {
         </Dialog>
     </div>
   );
+
+    
 
     

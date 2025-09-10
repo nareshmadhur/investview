@@ -16,19 +16,10 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "../ui/scroll-area";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "../ui/button";
+import { formatCurrency } from './kpi-card';
 
 
-type SortKey = 'displayName' | 'currentValue' | 'unrealizedPL';
-
-const formatCurrency = (value: number, currency: 'USD' | 'INR') => {
-  const fractionDigits = currency === 'INR' ? 0 : 2;
-  return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    }).format(value);
-};
+type SortKey = 'displayName' | 'currentValue' | 'unrealizedPL' | 'cost';
 
 const formatShares = (quantity: number) => {
     if (quantity % 1 === 0) {
@@ -77,8 +68,8 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
     }
   };
 
-  const SortableHeader = ({ tkey, label }: { tkey: SortKey, label: string}) => (
-    <Button variant="ghost" onClick={() => handleSort(tkey)} className="px-0 hover:bg-transparent">
+  const SortableHeader = ({ tkey, label, className }: { tkey: SortKey, label: string, className?: string}) => (
+    <Button variant="ghost" onClick={() => handleSort(tkey)} className={cn("px-0 hover:bg-transparent", className)}>
         {label}
         <ArrowUpDown className={cn("ml-2 h-4 w-4", sortKey !== tkey && "text-muted-foreground/50")} />
     </Button>
@@ -99,11 +90,14 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
                         <SortableHeader tkey="displayName" label="Asset" />
                     </TableHead>
                     <TableHead className="text-right">Avg. Cost / Current</TableHead>
-                    <TableHead className="text-right">
-                        <SortableHeader tkey="currentValue" label="Current Value" />
+                    <TableHead>
+                        <SortableHeader tkey="cost" label="Invested" className="justify-end w-full" />
                     </TableHead>
-                    <TableHead className="text-right">
-                        <SortableHeader tkey="unrealizedPL" label="Unrealized P/L" />
+                    <TableHead>
+                        <SortableHeader tkey="currentValue" label="Current Value" className="justify-end w-full"/>
+                    </TableHead>
+                    <TableHead>
+                        <SortableHeader tkey="unrealizedPL" label="Unrealized P/L" className="justify-end w-full"/>
                     </TableHead>
                 </TableRow>
             </TableHeader>
@@ -115,8 +109,11 @@ export default function PerformanceTable({ assets, currency }: { assets: Asset[]
                         <div className="text-xs text-muted-foreground">{formatShares(asset.quantity)} shares</div>
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
-                        <div>{formatCurrency(asset.purchasePrice, currency)}</div>
-                        <div className="text-muted-foreground">{formatCurrency(asset.currentPrice, currency)}</div>
+                        <div>{formatCurrency(asset.purchasePrice, currency, 2)}</div>
+                        <div className="text-muted-foreground">{formatCurrency(asset.currentPrice, currency, 2)}</div>
+                    </TableCell>
+                     <TableCell className="text-right font-mono text-sm">
+                        {formatCurrency(asset.cost, currency)}
                     </TableCell>
                     <TableCell className="text-right font-bold">
                         {formatCurrency(asset.currentValue, currency)}

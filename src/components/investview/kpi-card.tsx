@@ -18,10 +18,11 @@ type KpiCardProps = {
   currency?: 'USD' | 'INR';
   fractionDigits?: number;
   tooltipText?: string;
+  onClick?: () => void;
 };
 
-const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits: number) => {
-  const digits = currency === 'INR' ? 0 : fractionDigits;
+export const formatCurrency = (value: number, currency: 'USD' | 'INR', fractionDigits?: number) => {
+  const digits = fractionDigits !== undefined ? fractionDigits : (currency === 'INR' ? 0 : 2);
   return new Intl.NumberFormat('en-US', { 
     style: 'currency', 
     currency,
@@ -34,11 +35,11 @@ const formatNumber = (value: number) => {
     return new Intl.NumberFormat('en-US').format(value);
 }
 
-export default function KpiCard({ title, value, format = 'number', icon: Icon, currency = 'USD', fractionDigits = 2, tooltipText }: KpiCardProps) {
+export default function KpiCard({ title, value, format = 'number', icon: Icon, currency = 'USD', fractionDigits, tooltipText, onClick }: KpiCardProps) {
   const displayValue = format === 'currency' ? formatCurrency(value, currency, fractionDigits) : formatNumber(value);
 
   return (
-    <Card>
+    <Card onClick={onClick} className={cn(onClick && "cursor-pointer hover:bg-muted/50 transition-colors")}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
             {title}

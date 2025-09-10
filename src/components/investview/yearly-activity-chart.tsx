@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/chart";
 import type { Transaction } from '@/types';
 import { useMemo } from 'react';
+import { formatCurrency } from './kpi-card';
 
 const chartConfig = {
   buy: {
@@ -94,15 +95,7 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
                     cursor={false}
                     content={<ChartTooltipContent 
                         indicator="dot"
-                        formatter={(value, name, props) => {
-                           const formattedValue = new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency,
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0,
-                            }).format(value as number);
-                            return [formattedValue, name];
-                        }}
+                        formatter={(value) => formatCurrency(value as number, currency)}
                      />}
                 />
                 <Bar dataKey="buy" fill="var(--color-buy)" radius={4} />

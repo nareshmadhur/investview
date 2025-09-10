@@ -14,11 +14,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, TrendingUp, BarChart, Settings, CircleDollarSign, Wallet } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, Settings } from 'lucide-react';
 
-import KpiCard from '@/components/investview/kpi-card';
+import PortfolioSummary from '@/components/investview/portfolio-summary';
 import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
 import PerformanceTable from '@/components/investview/performance-table';
+import TopMovers from '@/components/investview/top-movers';
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -47,9 +48,9 @@ export default function Home() {
         if (!parsedData.currency) parsedData.currency = 'USD';
         if (parsedData.realizedProfit === undefined) parsedData.realizedProfit = 0;
 
-        setPortfolio(parsedData);
-        setFileName("loaded_from_cache.csv");
-        setCsvTemplate(parsedData.currency === 'INR' ? 'groww' : 'default');
+        setPortfolio(parsedData.portfolio);
+        setFileName(parsedData.fileName);
+        setCsvTemplate(parsedData.portfolio.currency === 'INR' ? 'groww' : 'default');
       } catch {
         localStorage.removeItem('portfolioData');
       }
@@ -58,20 +59,21 @@ export default function Home() {
 
   const fetchLivePrices = async (assets: Asset[]): Promise<Asset[]> => {
     const updatedAssets = [...assets];
-    for (let i = 0; i < updatedAssets.length; i++) {
-        const asset = updatedAssets[i];
-        const result = await getYahooFinancePrice(asset.asset);
-        if (result.price) {
-            asset.currentPrice = result.price;
-        } else {
-             toast({
-                variant: 'destructive',
-                title: `Price Fetch Failed for ${asset.asset}`,
-                description: result.error || 'Could not fetch the latest market price.',
-                duration: 4000,
-            });
-        }
-    }
+    const promises = updatedAssets.map(asset => 
+        getYahooFinancePrice(asset.asset).then(result => {
+            if (result.price) {
+                asset.currentPrice = result.price;
+            } else {
+                 toast({
+                    variant: 'destructive',
+                    title: `Price Fetch Failed for ${asset.asset}`,
+                    description: result.error || 'Could not fetch the latest market price.',
+                    duration: 4000,
+                });
+            }
+        })
+    );
+    await Promise.all(promises);
     return updatedAssets;
   }
 
@@ -101,13 +103,19 @@ export default function Home() {
 
           const currency = csvTemplate === 'groww' ? 'INR' : 'USD';
           
-          // Fetch live prices
           toast({ title: 'Fetching Live Prices...', description: `Fetching market data for ${result.assets.length} assets.`})
           const assetsWithLivePrices = await fetchLivePrices(result.assets);
 
           let finalPortfolio = calculatePortfolioMetrics(assetsWithLivePrices, result.transactions, currency, result.realizedProfit);
           setPortfolio(finalPortfolio);
-          localStorage.setItem('portfolioData', JSON.stringify(finalPortfolio));
+
+          // Save to local storage
+          const dataToSave = {
+            portfolio: finalPortfolio,
+            fileName: file.name
+          };
+          localStorage.setItem('portfolioData', JSON.stringify(dataToSave));
+
           toast({ title: 'Portfolio Ready!', description: 'Your dashboard has been updated with the latest data.' });
 
         } catch (error) {
@@ -166,9 +174,9 @@ export default function Home() {
   };
 
   const downloadSampleCsv = () => {
-    const csvContent = "Asset,Quantity,PurchasePrice,AssetType,Date\n" +
-      "AAPL,10,150,Stock,2023-01-15\n" +
-      "MSFT,15,300,Stock,2023-04-05\n";
+    const csvContent = "Symbol,Exchange,Quantity,PurchasePrice,AssetType,Date\n" +
+      "AAPL,NASDAQ,10,150,Stock,2023-01-15\n" +
+      "MSFT,NASDAQ,15,300,Stock,2023-04-05\n";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -180,17 +188,6 @@ export default function Home() {
     document.body.removeChild(link);
   };
   
-  const totalTransactions = useMemo(() => {
-    if (!portfolio || !portfolio.transactions) return 0;
-    return portfolio.transactions.length;
-  }, [portfolio]);
-
-  const totalCurrentValue = useMemo(() => {
-    if (!portfolio) return 0;
-    return portfolio.assets.reduce((acc, asset) => acc + (asset.quantity * asset.currentPrice), 0);
-  }, [portfolio]);
-
-
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
       <header className="p-4 border-b shadow-sm flex justify-between items-center">
@@ -264,42 +261,19 @@ export default function Home() {
 
           {portfolio && !isParsing && (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                 <KpiCard 
-                  title="Realized Profit" 
-                  value={portfolio.realizedProfit || 0} 
-                  format="currency" 
-                  icon={TrendingUp} 
-                  currency={portfolio.currency}
-                  fractionDigits={2}
-                  tooltipText="The total profit or loss from all completed sales."
-                />
-                 <KpiCard 
-                  title="Total Invested Value" 
-                  value={portfolio.totalCost} 
-                  format="currency" 
-                  icon={CircleDollarSign} 
-                  currency={portfolio.currency}
-                  fractionDigits={2}
-                  tooltipText="The total cost basis of your current holdings."
-                />
-                <KpiCard 
-                  title="Total Current Value" 
-                  value={totalCurrentValue} 
-                  format="currency" 
-                  icon={Wallet} 
-                  currency={portfolio.currency}
-                  fractionDigits={2}
-                  tooltipText="The total current market value of your holdings, based on live prices."
-                />
-                <KpiCard title="Total Transactions" value={totalTransactions} icon={BarChart} tooltipText="The total number of buy/sell transactions found in your file." />
-              </div>
+              <PortfolioSummary portfolio={portfolio} />
 
-              <div className="grid gap-8 lg:grid-cols-3">
-                 <div className="lg:col-span-2">
+              <div className="grid gap-8 lg:grid-cols-5">
+                 <div className="lg:col-span-3">
                     <PerformanceTable assets={portfolio.assets} currency={portfolio.currency} />
                  </div>
-                 <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
+                 <div className="lg:col-span-2">
+                    <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
+                 </div>
+              </div>
+
+              <div className="grid gap-8 lg:grid-cols-1">
+                 <TopMovers assets={portfolio.assets} transactions={portfolio.transactions} currency={portfolio.currency}/>
               </div>
 
               <Card>

@@ -190,7 +190,7 @@ export default function Home() {
   };
   
   return (
-    <div className="flex min-h-screen w-full flex-col">
+    <div className="flex min-h-screen w-full flex-col bg-background">
        <Sidebar collapsible="icon">
           <SidebarHeader className="p-4">
               <h1 className="text-2xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">InvestView</h1>
@@ -245,7 +245,7 @@ export default function Home() {
                 </Card>
            </SidebarContent>
        </Sidebar>
-       <SidebarInset>
+       <div className="flex flex-col flex-1">
           <header className="sticky top-0 z-10 flex h-[57px] items-center gap-1 border-b bg-background px-4">
             <SidebarTrigger className="md:hidden" />
             <h1 className="text-xl font-semibold">Dashboard</h1>
@@ -258,7 +258,7 @@ export default function Home() {
                 </Link>
             </div>
           </header>
-          <main className="flex-grow p-4 md:p-8">
+          <main className="flex-1 p-4 md:p-8">
             <div className="max-w-7xl mx-auto grid gap-8">
               {isParsing && (
                 <div className="flex justify-center items-center py-16">
@@ -318,10 +318,12 @@ export default function Home() {
               }
             </div>
           </main>
-       </SidebarInset>
-       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
-        <p>&copy; {new Date().getFullYear()} InvestView. Simple, powerful portfolio analysis.</p>
-      </footer>
+           <footer className="text-center p-4 text-sm text-muted-foreground border-t">
+            <p>&copy; {new Date().getFullYear()} InvestView. Simple, powerful portfolio analysis.</p>
+          </footer>
+       </div>
     </div>
   );
 }
+
+    

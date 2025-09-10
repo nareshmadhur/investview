@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { Portfolio } from '@/types';
-import { TrendingUp, Wallet, ArrowRightLeft, Coins, FileClock, Gem, Repeat, TrendingDown } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowRightLeft, Coins, Gem, Repeat, TrendingDown } from 'lucide-react';
 import KpiCard, { formatCurrency } from './kpi-card';
 import type { InfoPaneView } from './info-pane';
 
@@ -80,7 +80,7 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
     }, [portfolio]);
 
     return (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
             <KpiCard
                 title="Current Value"
                 value={stats.totalCurrentValue}
@@ -114,14 +114,6 @@ export default function PortfolioSummary({ portfolio, setInfoPaneView }: { portf
                 icon={ArrowRightLeft} 
                 tooltipText="The total number of buy/sell transactions. Click to see the full log."
                 onClick={() => setInfoPaneView({ type: 'transactions'})}
-            />
-             <KpiCard 
-                title="Investment Activity" 
-                value={portfolio.transactions.length}
-                format="number"
-                icon={FileClock} 
-                tooltipText="A chart showing buy/sell volume over the years. Click to view."
-                onClick={() => setInfoPaneView({ type: 'yearly_activity'})}
             />
             {stats.largestHolding && (
                 <KpiCard 

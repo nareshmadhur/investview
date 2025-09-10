@@ -295,15 +295,20 @@ export default function Home() {
               )}
 
               {portfolio && !isParsing && (
-                <>
-                    <div className="space-y-8">
-                         <PortfolioSummary portfolio={portfolio} setInfoPaneView={setInfoPaneView}/>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                         <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
-                         <InfoPane portfolio={portfolio} view={infoPaneView} />
-                    </div>
-                </>
+                <div className="space-y-8">
+                    <Card className="p-0">
+                      <CardContent className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                          <div className="lg:col-span-2">
+                            <PortfolioSummary portfolio={portfolio} setInfoPaneView={setInfoPaneView}/>
+                          </div>
+                           <div className="lg:col-span-1">
+                             <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
+                           </div>
+                      </CardContent>
+                    </Card>
+                    
+                    <InfoPane portfolio={portfolio} view={infoPaneView} />
+                </div>
               )}
 
               {!portfolio && !isParsing &&

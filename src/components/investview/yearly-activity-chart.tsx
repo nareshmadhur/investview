@@ -52,13 +52,13 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
 
   if(data.length === 0) {
     return (
-        <Card>
+        <Card className="h-full">
             <CardHeader>
-                <CardTitle>Yearly Investment Activity</CardTitle>
-                <CardDescription>No transaction data available to display.</CardDescription>
+                <CardTitle>Yearly Activity</CardTitle>
+                <CardDescription>No data available.</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center justify-center h-[350px]">
-                <p className="text-muted-foreground">Upload a CSV to see your activity.</p>
+            <CardContent className="flex items-center justify-center h-[250px]">
+                <p className="text-muted-foreground">Upload a CSV to see activity.</p>
             </CardContent>
         </Card>
     )
@@ -74,15 +74,15 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
 
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader>
+    <div className="flex flex-col h-full">
+      <CardHeader className="p-4 pb-0">
         <CardTitle>Yearly Investment Activity</CardTitle>
         <CardDescription>Total buy and sell value per year.</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 pb-4">
+      <CardContent className="flex-1 pb-4 pr-0">
         <ChartContainer config={chartConfig} className="h-full w-full">
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 30, right: 10, left: -20, bottom: 5 }}>
                 <XAxis dataKey="year" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
                 <YAxis
                     tickLine={false}
@@ -104,6 +104,6 @@ export default function YearlyActivityChart({ transactions, currency }: { transa
           </ResponsiveContainer>
         </ChartContainer>
       </CardContent>
-    </Card>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import type { Asset, Portfolio, Transaction } from '@/types';
 import { TrendingUp, TrendingDown, Repeat, BarChart, Gem } from 'lucide-react';
 import { formatCurrency } from './kpi-card';
+import { cn } from '@/lib/utils';
 
 const StatCard = ({ icon: Icon, title, value, subValue, className = '' }: { icon: React.ElementType, title: string, value: string, subValue?: string, className?: string}) => (
     <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/50">

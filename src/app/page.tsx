@@ -14,12 +14,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, Settings } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, Settings, SidebarIcon } from 'lucide-react';
 
 import PortfolioSummary from '@/components/investview/portfolio-summary';
 import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
 import PerformanceTable from '@/components/investview/performance-table';
 import TopMovers from '@/components/investview/top-movers';
+import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -189,126 +190,136 @@ export default function Home() {
   };
   
   return (
-    <div className="flex flex-col min-h-screen bg-background font-body">
-      <header className="p-4 border-b shadow-sm flex justify-between items-center">
-        <h1 className="text-2xl font-bold font-headline text-primary">InvestView</h1>
-        <Link href="/admin">
-          <Button variant="outline">
-            <Settings className="mr-2 h-4 w-4" />
-            Admin Panel
-          </Button>
-        </Link>
-      </header>
+    <div className="flex min-h-screen w-full flex-col">
+       <Sidebar collapsible="icon">
+          <SidebarHeader className="p-4">
+              <h1 className="text-2xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">InvestView</h1>
+              <h1 className="text-2xl font-bold font-headline text-primary group-data-[collapsible=icon]:block hidden">IV</h1>
+          </SidebarHeader>
+           <SidebarContent className="p-2 space-y-4">
+                <Card className="bg-card/50">
+                  <CardHeader className="p-4">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Upload className="w-5 h-5" />
+                      Portfolio Uploader
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 space-y-4">
+                    <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default (USD Stocks)</SelectItem>
+                        <SelectItem value="groww">Groww (INR Stocks)</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-      <main className="flex-grow p-4 md:p-8">
-        <div className="max-w-7xl mx-auto grid gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-6 h-6" />
-                Portfolio Uploader
-              </CardTitle>
-              <CardDescription>
-                Select a CSV template, then upload your portfolio data to get started. Live market prices will be fetched for your assets.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row items-center gap-4">
-              <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Select a template" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default (USD Stocks)</SelectItem>
-                  <SelectItem value="groww">Groww (INR Stocks)</SelectItem>
-                </SelectContent>
-              </Select>
-
-               <label htmlFor="csv-upload" className="flex-grow w-full">
-                  <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
-                    <div>
-                      {isParsing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <FileText className="mr-2 h-4 w-4" />
-                      )}
-                      {fileName || "Click to select a .csv file"}
-                    </div>
-                  </Button>
-                </label>
-                <Input
-                  id="csv-upload"
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileChange}
-                  className="sr-only"
-                  disabled={isParsing}
-                />
-              <Button onClick={downloadSampleCsv} variant="secondary" className="w-full sm:w-auto" disabled={csvTemplate !== 'default'}>
-                <Download className="mr-2 h-4 w-4" />
-                Sample CSV
-              </Button>
-            </CardContent>
-          </Card>
-
-          {isParsing && (
-             <div className="flex justify-center items-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-4 text-muted-foreground">
-                    Processing your portfolio...
-                </p>
-             </div>
-          )}
-
-          {portfolio && !isParsing && (
-            <>
-              <PortfolioSummary portfolio={portfolio} />
-              
-              <TopMovers assets={portfolio.assets} transactions={portfolio.transactions} currency={portfolio.currency}/>
-
-              <div className="grid gap-8 lg:grid-cols-5">
-                 <div className="lg:col-span-3">
-                    <PerformanceTable assets={portfolio.assets} currency={portfolio.currency} />
-                 </div>
-                 <div className="lg:col-span-2">
-                    <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
-                 </div>
-              </div>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="w-6 h-6 text-yellow-400" />
-                    Intelligent Analysis
-                  </CardTitle>
-                  <CardDescription>
-                    Get high-level suggestions from our AI to understand your portfolio's performance at a glance.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button onClick={generateAISuggestions} disabled={isAnalyzing}>
-                    {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Generate AI Suggestions
-                  </Button>
-                  {isAnalyzing && !aiSuggestions && <p className="mt-4 text-sm text-muted-foreground">Our AI is analyzing your portfolio...</p>}
-                  {aiSuggestions && (
-                    <div className="mt-4 p-4 bg-accent rounded-lg border">
-                      <p className="text-sm text-accent-foreground whitespace-pre-wrap">{aiSuggestions}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
-
-          {!portfolio && !isParsing &&
-            <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
-              <h3 className="text-lg font-semibold">Welcome to InvestView</h3>
-              <p>Upload your portfolio CSV to visualize your investments.</p>
+                    <label htmlFor="csv-upload" className="w-full">
+                        <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
+                          <div>
+                            {isParsing ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <FileText className="mr-2 h-4 w-4" />
+                            )}
+                            <span className="truncate">
+                              {fileName || "Select a .csv file"}
+                            </span>
+                          </div>
+                        </Button>
+                      </label>
+                      <Input
+                        id="csv-upload"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileChange}
+                        className="sr-only"
+                        disabled={isParsing}
+                      />
+                    <Button onClick={downloadSampleCsv} variant="secondary" className="w-full" disabled={csvTemplate !== 'default'}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Sample CSV
+                    </Button>
+                  </CardContent>
+                </Card>
+           </SidebarContent>
+       </Sidebar>
+       <SidebarInset>
+          <header className="sticky top-0 z-10 flex h-[57px] items-center gap-1 border-b bg-background px-4">
+            <SidebarTrigger className="md:hidden" />
+            <h1 className="text-xl font-semibold">Dashboard</h1>
+            <div className="ml-auto">
+                <Link href="/admin">
+                <Button variant="outline">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Admin Panel
+                </Button>
+                </Link>
             </div>
-          }
-        </div>
-      </main>
-      <footer className="text-center p-4 text-sm text-muted-foreground border-t">
+          </header>
+          <main className="flex-grow p-4 md:p-8">
+            <div className="max-w-7xl mx-auto grid gap-8">
+              {isParsing && (
+                <div className="flex justify-center items-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-4 text-muted-foreground">
+                        Processing your portfolio...
+                    </p>
+                </div>
+              )}
+
+              {portfolio && !isParsing && (
+                <>
+                  <PortfolioSummary portfolio={portfolio} />
+                  
+                  <TopMovers assets={portfolio.assets} transactions={portfolio.transactions} currency={portfolio.currency}/>
+
+                  <div className="grid gap-8 lg:grid-cols-5">
+                    <div className="lg:col-span-3">
+                        <PerformanceTable assets={portfolio.assets} currency={portfolio.currency} />
+                    </div>
+                    <div className="lg:col-span-2">
+                        <YearlyActivityChart transactions={portfolio.transactions} currency={portfolio.currency} />
+                    </div>
+                  </div>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Lightbulb className="w-6 h-6 text-yellow-400" />
+                        Intelligent Analysis
+                      </CardTitle>
+                      <CardDescription>
+                        Get high-level suggestions from our AI to understand your portfolio's performance at a glance.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button onClick={generateAISuggestions} disabled={isAnalyzing}>
+                        {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Generate AI Suggestions
+                      </Button>
+                      {isAnalyzing && !aiSuggestions && <p className="mt-4 text-sm text-muted-foreground">Our AI is analyzing your portfolio...</p>}
+                      {aiSuggestions && (
+                        <div className="mt-4 p-4 bg-accent/20 rounded-lg border border-border">
+                          <p className="text-sm text-accent-foreground whitespace-pre-wrap">{aiSuggestions}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {!portfolio && !isParsing &&
+                <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
+                  <h3 className="text-lg font-semibold">Welcome to InvestView</h3>
+                  <p>Upload your portfolio CSV from the sidebar to visualize your investments.</p>
+                </div>
+              }
+            </div>
+          </main>
+       </SidebarInset>
+       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
         <p>&copy; {new Date().getFullYear()} InvestView. Simple, powerful portfolio analysis.</p>
       </footer>
     </div>

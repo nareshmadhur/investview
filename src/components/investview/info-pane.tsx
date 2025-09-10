@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo } from "react";
+import * as React from "react";
 import {
   Table,
   TableBody,
@@ -256,7 +257,7 @@ const TopMoverDetailView = ({ portfolio, moverType}: { portfolio: Portfolio, mov
     return (
         <ScrollArea className="h-[75vh]">
             <div className="flex items-center gap-4 mb-6">
-                {icon && <div className="p-3 bg-muted rounded-full"><Card.Icon icon={icon} className="w-8 h-8 text-primary" /></div>}
+                {icon && <div className="p-3 bg-muted rounded-full">{React.createElement(icon, { className: "w-8 h-8 text-primary" })}</div>}
                 <div>
                     <h3 className="text-2xl font-bold">{displayName}</h3>
                     <p className="text-muted-foreground">{mover}</p>

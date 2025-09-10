@@ -1,7 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import type { Asset, Transaction } from '@/types';
 import { parseCSV, type CsvTemplate, type ParseResult } from '@/lib/csv-parser';
 import { getYahooFinancePrice } from './actions';
@@ -16,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp, AlertTriangle, CheckCircle, LayoutDashboard } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({
@@ -241,6 +242,54 @@ export default function AdminPage() {
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const { toast } = useToast();
 
+   useEffect(() => {
+    const savedData = localStorage.getItem('adminCsvData');
+    if (savedData) {
+      try {
+        const { fileContent, fileName: savedFileName, template } = JSON.parse(savedData);
+        if (fileContent && savedFileName && template) {
+            setFileName(savedFileName);
+            setCsvTemplate(template);
+            processCsvText(fileContent, template);
+        }
+      } catch (e) {
+        console.error("Failed to load admin data from local storage", e);
+        localStorage.removeItem('adminCsvData');
+      }
+    }
+  }, []);
+
+  const processCsvText = (text: string, template: CsvTemplate) => {
+    try {
+      const result: ParseResult = parseCSV(text, template);
+      setParsingLogs(result.logs || null);
+      if (result.error) throw new Error(result.error);
+      
+      const selectedCurrency = template === 'groww' ? 'INR' : 'USD';
+      setCurrency(selectedCurrency);
+
+      if (result.assets.length === 0) {
+        toast({
+          variant: "default",
+          title: "Parsing complete, no net holdings found",
+          description: "This might be expected if all holdings were sold or the file had no transaction data.",
+        });
+      }
+      setAssets(result.assets);
+      toast({ title: 'File Processed!', description: 'Your data is ready to be inspected.' });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Error parsing file",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
+      });
+      setAssets(null);
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -249,51 +298,17 @@ export default function AdminPage() {
       setAssets(null);
       setParsingLogs(null);
       setSelectedAsset(null);
-      const selectedCurrency = csvTemplate === 'groww' ? 'INR' : 'USD';
-      setCurrency(selectedCurrency);
       toast({ title: 'Processing File', description: 'Parsing your CSV file...' });
 
       const reader = new FileReader();
       reader.onload = async (e) => {
-        try {
-          const text = e.target?.result as string;
-          const result: ParseResult = parseCSV(text, csvTemplate);
-          
-          setParsingLogs(result.logs || null);
-
-          if (result.error) {
-            throw new Error(result.error);
-          }
-          
-          if (result.assets.length === 0 && result.transactions.length > 0) {
-            toast({
-              variant: "default",
-              title: "Parsing successful, but no net holdings",
-              description: "No net assets were found after processing all transactions. This might be expected if all holdings were sold.",
-            });
-             setAssets([]);
-          } else if (result.assets.length === 0 && result.transactions.length === 0) {
-            toast({
-              variant: "default",
-              title: "Parsing successful, but no transaction data found",
-              description: "The file was parsed, but no valid transaction rows were found.",
-            });
-            setAssets([]);
-          } else {
-            setAssets(result.assets);
-            toast({ title: 'File Processed!', description: 'Your data is ready to be inspected.' });
-          }
-        } catch (error) {
-          console.error(error);
-          toast({
-            variant: "destructive",
-            title: "Error parsing file",
-            description: error instanceof Error ? error.message : "An unknown error occurred.",
-          });
-          setAssets(null);
-        } finally {
-          setIsParsing(false);
-        }
+        const text = e.target?.result as string;
+        localStorage.setItem('adminCsvData', JSON.stringify({
+            fileContent: text,
+            fileName: file.name,
+            template: csvTemplate,
+        }));
+        processCsvText(text, csvTemplate);
       };
       reader.readAsText(file);
     }
@@ -339,8 +354,14 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
-      <header className="p-4 border-b shadow-sm bg-destructive text-destructive-foreground">
+      <header className="p-4 border-b shadow-sm bg-card text-card-foreground flex justify-between items-center">
         <h1 className="text-2xl font-bold font-headline">Admin Panel</h1>
+        <Link href="/">
+          <Button variant="outline">
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            Dashboard
+          </Button>
+        </Link>
       </header>
 
       <main className="flex-grow p-4 md:p-8">
@@ -355,7 +376,7 @@ export default function AdminPage() {
                 Aggregated Data Viewer
               </CardTitle>
               <CardDescription>
-                Upload a CSV to see the aggregated, parsed data. Current market prices will be fetched automatically. Click on an asset in the table below to see its detailed transaction history and current valuation.
+                Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered. Click on an asset in the table below to see its detailed transaction history and current valuation.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-4">
@@ -536,3 +557,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

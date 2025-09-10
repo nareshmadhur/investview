@@ -21,6 +21,7 @@ import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
 import PerformanceTable from '@/components/investview/performance-table';
 import TopMovers from '@/components/investview/top-movers';
 import { Sidebar, SidebarContent, SidebarHeader, SidebarTrigger } from '@/components/ui/sidebar';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -245,11 +246,12 @@ export default function Home() {
                 </Card>
            </SidebarContent>
        </Sidebar>
-       <div className="flex flex-1 flex-col">
+       <div className="flex-1 flex flex-col">
           <header className="sticky top-0 z-10 flex h-[57px] items-center gap-1 border-b bg-background px-4">
             <SidebarTrigger className="md:hidden" />
             <h1 className="text-xl font-semibold">Dashboard</h1>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+                <ThemeToggle />
                 <Link href="/admin">
                 <Button variant="outline">
                     <Settings className="mr-2 h-4 w-4" />
@@ -325,3 +327,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

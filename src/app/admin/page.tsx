@@ -15,9 +15,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp, AlertTriangle, CheckCircle, LayoutDashboard } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, TableIcon, Database, Search, Wallet, TrendingUp, AlertTriangle, CheckCircle, LayoutDashboard, Rocket } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function AssetLogsView({
@@ -153,84 +153,6 @@ function AssetLogsView({
     );
 };
 
-function YahooFinancePriceFetcher() {
-    const [symbol, setSymbol] = useState('RELIANCE.NS');
-    const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<{ price?: number; currency?: string; error?: string } | null>(null);
-    const { toast } = useToast();
-
-    const handleFetchPrice = async () => {
-        if (!symbol) {
-            toast({ variant: 'destructive', title: 'Symbol Required', description: 'Please enter a stock symbol with an exchange suffix (e.g., .NS, .BO).' });
-            return;
-        }
-        setIsLoading(true);
-        setResult(null);
-        try {
-            const res = await getYahooFinancePrice(symbol);
-            setResult(res);
-
-            if (res.error) {
-                toast({ variant: 'destructive', title: 'API Error', description: res.error, duration: 5000 });
-            }
-             if (res.price) {
-                toast({ variant: 'default', title: 'Price Loaded', description: `Successfully fetched price for ${symbol}.` });
-            }
-        } catch (e) {
-            const error = e instanceof Error ? e.message : 'An unknown error occurred.';
-            setResult({ error });
-            toast({ variant: 'destructive', title: 'Request Failed', description: error });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Database className="w-6 h-6" />
-                    Yahoo Finance Price Fetcher
-                </CardTitle>
-                <CardDescription>
-                    Test the Yahoo Finance API by fetching the price for a single stock. Use the format SYMBOL.EXCHANGE (e.g., RELIANCE.NS for NSE, or RELIANCE.BO for BSE).
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex w-full max-w-sm items-center space-x-2">
-                    <Input
-                        type="text"
-                        placeholder="e.g., RELIANCE.NS"
-                        value={symbol}
-                        onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                        onKeyDown={(e) => e.key === 'Enter' && handleFetchPrice()}
-                    />
-                    <Button onClick={handleFetchPrice} disabled={isLoading}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                        Fetch Price
-                    </Button>
-                </div>
-                
-                {result && result.price && result.currency && (
-                    <div className="mt-6">
-                        <h4 className="font-semibold mb-2">Result for {symbol}</h4>
-                        <div className="rounded-md border p-4 space-y-2 text-sm">
-                            <p><strong>Price:</strong> {new Intl.NumberFormat('en-US', { style: 'currency', currency: result.currency }).format(result.price)}</p>
-                        </div>
-                    </div>
-                )}
-                
-                {result && result.error && (
-                    <div className="mt-4 text-destructive p-4 bg-destructive/10 rounded-md border border-destructive/20">
-                        <p className="font-semibold">An error occurred:</p>
-                        <p className="text-sm">{result.error}</p>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
 export default function AdminPage() {
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -239,7 +161,9 @@ export default function AdminPage() {
   const [parsingLogs, setParsingLogs] = useState<ParseResult['logs'] | null>(null);
   const [currency, setCurrency] = useState<'USD' | 'INR'>('INR');
   const [selectedAsset, setSelectedAsset] = useState<{asset: Asset, transactions: Transaction[], isPriceLive: boolean} | null>(null);
-  const [isFetchingPrice, setIsFetchingPrice] = useState(false);
+  const [isFetchingPrices, setIsFetchingPrices] = useState(false);
+  const [bulkFetchResults, setBulkFetchResults] = useState<{success: string[], failed: {asset: string, error: string}[]} | null>(null);
+
   const { toast } = useToast();
 
    useEffect(() => {
@@ -298,6 +222,7 @@ export default function AdminPage() {
       setAssets(null);
       setParsingLogs(null);
       setSelectedAsset(null);
+      setBulkFetchResults(null);
       toast({ title: 'Processing File', description: 'Parsing your CSV file...' });
 
       const reader = new FileReader();
@@ -316,7 +241,7 @@ export default function AdminPage() {
   };
   
   const handleViewTransactions = async (asset: Asset) => {
-    setIsFetchingPrice(true);
+    setIsFetchingPrices(true);
     toast({ title: 'Fetching Live Price...', description: `Getting latest market data for ${asset.displayName}`});
     const result = await getYahooFinancePrice(asset.asset);
     
@@ -347,14 +272,40 @@ export default function AdminPage() {
       transactions: parsingLogs?.assetLogs?.[asset.asset]?.transactions || [],
       isPriceLive: isPriceLive
     });
-    setIsFetchingPrice(false);
+    setIsFetchingPrices(false);
+  }
+
+  const handleBulkFetchPrices = async () => {
+    if (!assets) return;
+    setIsFetchingPrices(true);
+    setBulkFetchResults(null);
+    toast({ title: 'Bulk Fetching Prices', description: `Fetching live data for ${assets.length} assets...`});
+
+    const results = await Promise.all(
+        assets.map(asset => getYahooFinancePrice(asset.asset).then(res => ({...res, asset: asset.asset})))
+    );
+
+    const success: string[] = [];
+    const failed: {asset: string, error: string}[] = [];
+
+    results.forEach(result => {
+        if (result.price) {
+            success.push(result.asset);
+        } else {
+            failed.push({ asset: result.asset, error: result.error || 'Unknown error' });
+        }
+    });
+
+    setBulkFetchResults({ success, failed });
+    setIsFetchingPrices(false);
+    toast({ title: 'Bulk Fetch Complete', description: `${success.length} succeeded, ${failed.length} failed.` });
   }
 
   const hasAssets = assets !== null;
 
   return (
     <div className="flex flex-col min-h-screen bg-background font-body">
-      <header className="p-4 border-b shadow-sm bg-card text-card-foreground flex justify-between items-center">
+      <header className="p-4 border-b shadow-sm bg-card text-card-foreground flex justify-between items-center sticky top-0 z-10">
         <h1 className="text-2xl font-bold font-headline">Admin Panel</h1>
         <Link href="/">
           <Button variant="outline">
@@ -367,8 +318,6 @@ export default function AdminPage() {
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto grid gap-8">
           
-          <YahooFinancePriceFetcher />
-
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -379,9 +328,9 @@ export default function AdminPage() {
                 Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered. Click on an asset in the table below to see its detailed transaction history and current valuation.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row items-center gap-4">
+            <CardContent className="grid sm:grid-cols-1 md:grid-cols-[180px_1fr_auto] items-center gap-4">
               <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger>
                   <SelectValue placeholder="Select a template" />
                 </SelectTrigger>
                 <SelectContent>
@@ -390,7 +339,7 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
 
-              <label htmlFor="csv-upload" className="flex-grow w-full">
+              <label htmlFor="csv-upload" className="w-full">
                 <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
                   <div>
                     {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
@@ -399,6 +348,11 @@ export default function AdminPage() {
                 </Button>
               </label>
               <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="sr-only" disabled={isParsing} />
+              
+              <Button onClick={handleBulkFetchPrices} disabled={!hasAssets || isFetchingPrices} className="w-full md:w-auto">
+                 {isFetchingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
+                 Fetch All Live Prices
+              </Button>
             </CardContent>
           </Card>
           
@@ -428,7 +382,8 @@ export default function AdminPage() {
                         <AccordionItem value="assets">
                              <AccordionTrigger>Asset Processing ({Object.keys(parsingLogs.assetLogs).length} assets)</AccordionTrigger>
                              <AccordionContent>
-                                <Accordion type="multiple" className="w-full">
+                                <ScrollArea className="h-[40vh]">
+                                <Accordion type="multiple" className="w-full pr-4">
                                     {Object.entries(parsingLogs.assetLogs).map(([assetName, assetLog]) => (
                                         <AccordionItem value={assetName} key={assetName}>
                                             <AccordionTrigger>{assetName}</AccordionTrigger>
@@ -457,6 +412,7 @@ export default function AdminPage() {
                                         </AccordionItem>
                                     ))}
                                 </Accordion>
+                                </ScrollArea>
                              </AccordionContent>
                         </AccordionItem>
                          <AccordionItem value="summary">
@@ -501,8 +457,8 @@ export default function AdminPage() {
                           <TableCell>{asset.purchasePrice.toFixed(2)}</TableCell>
                           <TableCell>{asset.assetType}</TableCell>
                           <TableCell className="text-right">
-                              <Button variant="outline" size="sm" onClick={() => handleViewTransactions(asset)} disabled={isFetchingPrice}>
-                                {isFetchingPrice && selectedAsset?.asset.asset === asset.asset ? (
+                              <Button variant="outline" size="sm" onClick={() => handleViewTransactions(asset)} disabled={isFetchingPrices && selectedAsset?.asset.asset !== asset.asset}>
+                                {isFetchingPrices && selectedAsset?.asset.asset === asset.asset ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 ) : (
                                     <TableIcon className="mr-2 h-4 w-4" />
@@ -538,6 +494,42 @@ export default function AdminPage() {
               </DialogContent>
             </Dialog>
 
+            <Dialog open={!!bulkFetchResults} onOpenChange={(isOpen) => !isOpen && setBulkFetchResults(null)}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Bulk Price Fetch Results</DialogTitle>
+                        <DialogDescription>
+                            Summary of the live price fetching process for all assets.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {bulkFetchResults && (
+                        <div className="grid grid-cols-2 gap-6 pt-4">
+                            <div>
+                                <h3 className="font-semibold text-green-600 mb-2">Succeeded ({bulkFetchResults.success.length})</h3>
+                                <ScrollArea className="h-60">
+                                    <ul className="list-disc pl-5 text-sm space-y-1">
+                                        {bulkFetchResults.success.map(asset => <li key={asset}>{asset}</li>)}
+                                    </ul>
+                                </ScrollArea>
+                            </div>
+                             <div>
+                                <h3 className="font-semibold text-red-600 mb-2">Failed ({bulkFetchResults.failed.length})</h3>
+                                <ScrollArea className="h-60">
+                                    <ul className="space-y-2">
+                                        {bulkFetchResults.failed.map(fail => (
+                                            <li key={fail.asset} className="text-sm p-2 rounded-md bg-destructive/10">
+                                                <p className="font-bold">{fail.asset}</p>
+                                                <p className="text-xs text-muted-foreground">{fail.error}</p>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </ScrollArea>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
 
           {hasAssets && assets.length === 0 && (
              <div className="text-center text-muted-foreground py-16 border-2 border-dashed rounded-lg">
@@ -557,5 +549,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    

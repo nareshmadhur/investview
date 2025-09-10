@@ -218,7 +218,7 @@ export default function Home() {
 
                     <label htmlFor="csv-upload" className="w-full">
                         <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
-                          <div>
+                          <div className="flex items-center">
                             {isParsing ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (

@@ -174,7 +174,7 @@ export default function AdminPage() {
         if (fileContent && savedFileName && template) {
             setFileName(savedFileName);
             setCsvTemplate(template);
-            processCsvText(fileContent, template);
+            processCsvText(fileContent, template, true);
         }
       } catch (e) {
         console.error("Failed to load admin data from local storage", e);
@@ -182,8 +182,34 @@ export default function AdminPage() {
       }
     }
   }, []);
+  
+  const handleBulkFetchPrices = async (assetsToFetch: Asset[]) => {
+    if (!assetsToFetch || assetsToFetch.length === 0) return;
+    setIsFetchingPrices(true);
+    setPriceFetchSummary(null);
+    toast({ title: 'Fetching Live Prices', description: `Fetching live data for ${assetsToFetch.length} assets...`});
 
-  const processCsvText = (text: string, template: CsvTemplate) => {
+    const results = await Promise.all(
+        assetsToFetch.map(asset => getYahooFinancePrice(asset.asset).then(res => ({...res, asset: asset.asset})))
+    );
+
+    const success: string[] = [];
+    const failed: {asset: string, error: string}[] = [];
+
+    results.forEach(result => {
+        if (result.price) {
+            success.push(result.asset);
+        } else {
+            failed.push({ asset: result.asset, error: result.error || 'Unknown error' });
+        }
+    });
+
+    setPriceFetchSummary({ success, failed });
+    setIsFetchingPrices(false);
+    toast({ title: 'Price Fetch Complete', description: `${success.length} succeeded, ${failed.length} failed.` });
+  }
+
+  const processCsvText = (text: string, template: CsvTemplate, isFromCache = false) => {
     try {
       const result: ParseResult = parseCSV(text, template);
       setParsingLogs(result.logs || null);
@@ -200,7 +226,12 @@ export default function AdminPage() {
         });
       }
       setAssets(result.assets);
-      toast({ title: 'File Processed!', description: 'Your data is ready to be inspected.' });
+      if (!isFromCache) {
+        toast({ title: 'File Processed!', description: 'Your data is ready. Now fetching prices...' });
+        handleBulkFetchPrices(result.assets);
+      } else {
+        toast({ title: 'Loaded from Cache!', description: 'Last used data has been restored.'});
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -275,32 +306,6 @@ export default function AdminPage() {
     setIsFetchingPrices(false);
   }
 
-  const handleBulkFetchPrices = async () => {
-    if (!assets) return;
-    setIsFetchingPrices(true);
-    setPriceFetchSummary(null);
-    toast({ title: 'Bulk Fetching Prices', description: `Fetching live data for ${assets.length} assets...`});
-
-    const results = await Promise.all(
-        assets.map(asset => getYahooFinancePrice(asset.asset).then(res => ({...res, asset: asset.asset})))
-    );
-
-    const success: string[] = [];
-    const failed: {asset: string, error: string}[] = [];
-
-    results.forEach(result => {
-        if (result.price) {
-            success.push(result.asset);
-        } else {
-            failed.push({ asset: result.asset, error: result.error || 'Unknown error' });
-        }
-    });
-
-    setPriceFetchSummary({ success, failed });
-    setIsFetchingPrices(false);
-    toast({ title: 'Bulk Fetch Complete', description: `${success.length} succeeded, ${failed.length} failed.` });
-  }
-
   const hasAssets = assets !== null;
 
   return (
@@ -326,10 +331,10 @@ export default function AdminPage() {
                     Aggregated Data Viewer
                 </CardTitle>
                 <CardDescription>
-                    Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered. Click on an asset in the table below to see its detailed transaction history and current valuation.
+                    Upload a CSV to see the aggregated, parsed data. The last uploaded file is remembered and prices are fetched automatically.
                 </CardDescription>
                 </CardHeader>
-                <CardContent className="grid sm:grid-cols-1 md:grid-cols-3 items-center gap-4">
+                <CardContent className="grid sm:grid-cols-1 md:grid-cols-2 items-center gap-4">
                 <Select value={csvTemplate} onValueChange={(value) => setCsvTemplate(value as CsvTemplate)}>
                     <SelectTrigger>
                     <SelectValue placeholder="Select a template" />
@@ -342,18 +347,16 @@ export default function AdminPage() {
 
                 <label htmlFor="csv-upload" className="w-full">
                     <Button asChild variant="outline" className="w-full justify-start text-muted-foreground cursor-pointer">
-                    <div>
+                    <div className="flex items-center">
                         {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                        {fileName || "Click to select a .csv file"}
+                        <span className="truncate">
+                            {fileName || "Click to select a .csv file"}
+                        </span>
                     </div>
                     </Button>
                 </label>
                 <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="sr-only" disabled={isParsing} />
-                
-                <Button onClick={handleBulkFetchPrices} disabled={!hasAssets || isFetchingPrices} className="w-full md:w-auto">
-                    {isFetchingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
-                    Fetch All Live Prices
-                </Button>
+
                 </CardContent>
             </Card>
 
@@ -496,7 +499,10 @@ export default function AdminPage() {
             {priceFetchSummary && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Price Fetch Summary</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                             {isFetchingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="w-5 h-5"/>}
+                            Price Fetch Summary
+                        </CardTitle>
                          <CardDescription>
                             Summary of the live price fetching process for all assets.
                         </CardDescription>
@@ -552,7 +558,5 @@ export default function AdminPage() {
         </Dialog>
     </div>
   );
-
-    
 
     

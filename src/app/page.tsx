@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { Portfolio, Asset, Transaction } from '@/types';
 import { provideInvestmentSuggestions } from '@/ai/flows/provide-investment-suggestions';
@@ -14,13 +14,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Lightbulb, FileText, Download, Settings, SidebarIcon } from 'lucide-react';
+import { Loader2, Upload, Lightbulb, FileText, Download, Settings } from 'lucide-react';
 
 import PortfolioSummary from '@/components/investview/portfolio-summary';
 import YearlyActivityChart from '@/components/investview/yearly-activity-chart';
 import PerformanceTable from '@/components/investview/performance-table';
 import TopMovers from '@/components/investview/top-movers';
-import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarHeader, SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -190,7 +190,7 @@ export default function Home() {
   };
   
   return (
-    <div className="flex min-h-screen w-full flex-col bg-background">
+    <div className="flex min-h-screen w-full bg-background">
        <Sidebar collapsible="icon">
           <SidebarHeader className="p-4">
               <h1 className="text-2xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">InvestView</h1>
@@ -245,7 +245,7 @@ export default function Home() {
                 </Card>
            </SidebarContent>
        </Sidebar>
-       <div className="flex flex-col flex-1">
+       <div className="flex flex-1 flex-col">
           <header className="sticky top-0 z-10 flex h-[57px] items-center gap-1 border-b bg-background px-4">
             <SidebarTrigger className="md:hidden" />
             <h1 className="text-xl font-semibold">Dashboard</h1>
@@ -325,5 +325,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
